@@ -14,7 +14,7 @@ from config import MINECRAFT_DIR, SHARED_MC_DIR, JAVA_DIR, INSTALLED_FILE, CACHE
 ProgressCallback = Callable[[str, float], None]
 
 
-# ─── installed.json helpers ──────────────────────────────────────────────────
+# installed.json helpers
 
 def _load_installed() -> dict:
     if INSTALLED_FILE.exists():
@@ -76,7 +76,7 @@ def _save_mods_manifest(mode_id: str, mode_dir: Path):
     _save_managed_manifest(mode_id, files)
 
 
-# ─── .mrpack (Modrinth modpack) ──────────────────────────────────────────────
+# .mrpack (Modrinth modpack)
 # Формат: zip с modrinth.index.json (моды по ссылкам на CDN + sha1) и папкой
 # overrides/ (config, options.txt и ПРИВАТНЫЕ моды в overrides/mods/).
 
@@ -301,7 +301,7 @@ def is_installed(mode: dict) -> bool:
     return get_installed_version(mode["id"]) is not None
 
 
-# ─── Download helpers ─────────────────────────────────────────────────────────
+# Download helpers
 
 def _download_file(url: str, dest: Path, on_progress: ProgressCallback, label: str, retries: int = 3):
     import time
@@ -331,7 +331,7 @@ def _download_file(url: str, dest: Path, on_progress: ProgressCallback, label: s
             time.sleep(2 * attempt)
 
 
-# ─── minecraft-launcher-lib progress callback ─────────────────────────────────
+# minecraft-launcher-lib progress callback
 
 def _make_mll_callbacks(on_progress: ProgressCallback):
     """Конвертирует прогресс minecraft-launcher-lib в наш ProgressCallback."""
@@ -351,7 +351,7 @@ def _make_mll_callbacks(on_progress: ProgressCallback):
     return {"setStatus": set_status, "setProgress": set_progress, "setMax": set_max}
 
 
-# ─── Java ────────────────────────────────────────────────────────────────────
+# Java
 
 def _ensure_java(java_url: str | None, java_key: str, on_progress: ProgressCallback) -> Path | None:
     """Скачивает портативную Java. Кэширует в data/java/{java_key}/ — общий для всех режимов."""
@@ -397,7 +397,7 @@ def _ensure_java(java_url: str | None, java_key: str, on_progress: ProgressCallb
     return None
 
 
-# ─── Install mode ─────────────────────────────────────────────────────────────
+# Install mode
 
 def install_mode(mode: dict, on_progress: ProgressCallback, launcher_config: dict = None):
     mode_id = mode["id"]

@@ -69,7 +69,7 @@ class _HeadLoader(QObject):
 
 
 class PlayerHeadLabel(QLabel):
-    """Иконка головы игрока в кнопке аккаунта."""
+    # Иконка головы игрока в кнопке аккаунта.
     def __init__(self, username: str, size: int = 24, parent=None):
         super().__init__(parent)
         self._size = size

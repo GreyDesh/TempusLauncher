@@ -1,4 +1,4 @@
-"""Microsoft OAuth для Minecraft."""
+# Microsoft OAuth для Minecraft.
 import threading
 import time
 import urllib.parse
@@ -17,6 +17,7 @@ _DEVICE_TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/tok
 # Authorization code flow (легаси MSA-клиент 00000000402b5328).
 # В отличие от implicit (response_type=token) даёт refresh_token, и — в отличие от
 # device-code клиента 40fd4978 — проходит login_with_xbox без 403. Проверено вживую.
+# Я ебал кодить с нуля - 3 недели.
 _TOKEN_URL   = "https://login.live.com/oauth20_token.srf"
 _AUTH_URL    = (
     "https://login.live.com/oauth20_authorize.srf"

@@ -27,7 +27,7 @@ except Exception as _e:
 # Разрешаем самоподписанный сертификат в QtWebEngine (до инициализации Qt)
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--ignore-certificate-errors"
 
-# ── Логирование ───────────────────────────────────────────────────────────────
+# Логирование (LOGS)
 def _setup_logging():
     from config import DATA_DIR
     log_path = DATA_DIR / "launcher.log"
@@ -60,6 +60,7 @@ sys.excepthook = _excepthook
 
 
 # Обновление обрабатывает bootstrap (TempusLauncher.exe) — app.exe не дублирует проверку
+# OLD
 
 
 from PyQt6.QtWidgets import QApplication
@@ -82,6 +83,7 @@ def _create_mutex():
 def main():
     # Отключаем WAM (Windows Account Manager) в Chromium/WebEngine —
     # иначе Windows перехватывает Microsoft логин и предлагает USB ключ / Windows Hello
+    # Grand FIX
     os.environ.setdefault(
         "QTWEBENGINE_CHROMIUM_FLAGS",
         "--disable-features=msSingleSignOn,WinSSOEnabled,WebAuthentication,WebAuthenticationRemoteDesktopSupport"
@@ -103,7 +105,7 @@ def main():
     app.setApplicationName("TempusLauncher")
     app.setStyleSheet(DARK_GLASS_QSS)
 
-    # Иконка приложения (панель задач + Alt+Tab)
+    # Иконка приложения (панель задач + Alt+Tab) (ICO)
     from PyQt6.QtGui import QIcon
     from PyQt6.QtCore import QByteArray
     import asset_pack
@@ -145,6 +147,7 @@ def _open_login(app: QApplication, config: dict, news: list):
     win.login_success.connect(on_login)
     win.show()
     app._login_win = win  # Удерживаем ссылку
+    # Я узнал что ссылка Microsoft дается на некоторое врямя и сбрасывается, нужно перехватить!
 
 
 def _open_main(app: QApplication, config: dict, news: list, username: str):
@@ -235,6 +238,7 @@ def _open_main(app: QApplication, config: dict, news: list, username: str):
     tray_menu.addSeparator()
     act_quit = tray_menu.addAction("  Выйти из лаунчера")
     act_quit.setObjectName("quit")
+
 
     def _show():
         win.showNormal()

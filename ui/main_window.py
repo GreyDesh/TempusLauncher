@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
 
 
 class WinControlBtn(QWidget):
-    """Кнопка управления окном — кастомный виджет, не подпадает под глобальный QSS QPushButton."""
+    # Кнопка управления окном — кастомный виджет, не подпадает под глобальный QSS QPushButton.
     clicked = pyqtSignal()
 
     def __init__(self, text: str, fg: QColor, hover_bg: QColor, parent=None):

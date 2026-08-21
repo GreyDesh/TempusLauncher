@@ -211,7 +211,7 @@ class FriendHoverCard(QWidget):
         self._build()
         self._load_assets()
 
-    # ── Build ─────────────────────────────────────────────────────────────────
+    # Build
 
     def _build(self):
         from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout
@@ -219,7 +219,7 @@ class FriendHoverCard(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # ── Left: GL skin в контейнере фиксированного размера ─────────────
+        # Left: GL skin в контейнере фиксированного размера
         from PyQt6.QtWidgets import QVBoxLayout as _VL, QGraphicsOpacityEffect
         gl_container = QWidget()
         gl_container.setFixedSize(self.GL_W, self.CARD_H)
@@ -903,7 +903,7 @@ class FriendsPanel(QWidget):
             self._refresh()
             self._poll_timer.start()
 
-    # ── Build UI ──────────────────────────────────────────────────────────────
+    # Build UI
 
     def _build(self):
         lay = QVBoxLayout(self)
@@ -1214,7 +1214,7 @@ class FriendsPanel(QWidget):
     def friend_name(self, uuid: str) -> str | None:
         return _names_cache.get(uuid)
 
-    # ── Actions ───────────────────────────────────────────────────────────────
+    # Actions
 
     def _do_search(self):
         q = self._search.text().strip()

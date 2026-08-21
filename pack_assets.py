@@ -1,9 +1,8 @@
-"""
-Упаковщик ассетов — запускается при сборке.
-Упаковывает assets/ и model/ в один data.dat файл.
+# Упаковщик ассетов — запускается при сборке.
+# Упаковывает assets/ и model/ в один data.dat файл.
 
-Использование: py -3.11 pack_assets.py
-"""
+# Использование: py -3.11 pack_assets.py
+
 import struct
 import sys
 from pathlib import Path

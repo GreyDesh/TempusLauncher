@@ -1,4 +1,4 @@
-"""Утилита для отображения событий режима (закрытие/открытие/ивент)."""
+# Утилита для отображения событий режима (закрытие/открытие/ивент).
 from datetime import datetime, timezone
 
 
@@ -23,6 +23,7 @@ def get_event_parts(mode: dict) -> tuple[str, str]:
         dt = datetime.fromisoformat(date_str)
         # Наивную дату трактуем как ЛОКАЛЬНОЕ время (админ вводит своё время),
         # дату с указанным поясом — как есть. Сравниваем с локальным «сейчас».
+        # OLD
         if dt.tzinfo is None:
             dt = dt.astimezone()
         now = datetime.now().astimezone()
@@ -34,7 +35,7 @@ def get_event_parts(mode: dict) -> tuple[str, str]:
         else:
             days = int(secs // 86400)
             if days >= 1:
-                # 1 день; 2-4 дня; 5+ дней (по последней цифре, с учётом 11-14)
+                # 1 день; 2-4 дня; 5+ дней (по последней цифре, с учётом 11-14) (как в steam)
                 d10, d100 = days % 10, days % 100
                 if d10 == 1 and d100 != 11:
                     value = f"{days} день"

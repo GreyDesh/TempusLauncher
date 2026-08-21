@@ -35,12 +35,12 @@ def _total_ram_mb() -> int:
     except Exception:
         return 4096
 
-
+# Спасибо лично HP Notepad - Intel Core 2 Duo 2GB без GPU, за мой опыт страдания, Аминь!
 def auto_ram_mb() -> int:
     """50% of total RAM, but leaves 2 GB for the OS. Clamped to [1024, 8192] MB."""
     total = _total_ram_mb()
     half = total // 2
-    safe = total - 2048          # leave 2 GB for OS
+    safe = total - 2048          # оставьте 2 ГБ для ОС
     value = min(half, safe)
     return max(1024, min(value, 8192))
 
@@ -79,6 +79,7 @@ def _find_java_modern() -> str | None:
         for exe in _glob.glob(f"{root}\\*/bin\\java.exe"):
             candidates.append(exe)
     # Предпочитаем 17, затем 21, затем любую >= 17
+    # JAVA
     for preferred in (17, 21):
         for exe in candidates:
             if _java_version(exe) == preferred:

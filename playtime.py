@@ -1,5 +1,6 @@
-"""Плейтайм — серверный подсчёт как в Steam.
-Лаунчер только сообщает старт/пинг/стоп, сервер считает время сам."""
+# Плейтайм — серверный подсчёт как в Steam.
+# Лаунчер только сообщает старт/пинг/стоп, сервер считает время сам.
+
 import threading
 import requests
 import logging
@@ -7,15 +8,15 @@ from datetime import datetime, timezone
 
 log = logging.getLogger("playtime")
 
-# Кеш с сервера (только для отображения в UI)
+# Кеш с сервера (только для отображения UI)
 _cache: dict = {}
 
 # Текущая активная сессия
 _session_id: str | None = None
 _session_mode_id: str | None = None
 _ping_timer: threading.Timer | None = None
-_PING_INTERVAL = 5 * 60  # 5 минут
-
+_PING_INTERVAL = 5 * 60
+# 5 минут
 
 def _get_discord_id() -> str | None:
     import auth_client
@@ -178,3 +179,5 @@ def format_last_played(iso: str | None) -> str:
         return dt.strftime("%d.%m.%Y")
     except Exception:
         return "—"
+
+#Нужно переписать, мне не нравится, как работает :(

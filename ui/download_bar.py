@@ -1,4 +1,5 @@
-"""Попап загрузок — всплывает над кнопкой Загрузки в сайдбаре."""
+# Попап загрузок — всплывает над кнопкой Загрузки в сайдбаре.
+
 from PyQt6.QtCore import Qt, QPoint
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PyQt6.QtWidgets import (

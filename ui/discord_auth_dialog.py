@@ -1,4 +1,5 @@
-"""Диалог привязки Discord через лаунчерный OAuth-поток."""
+# Диалог привязки Discord через лаунчерный OAuth-поток.\
+
 from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QTimer
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar

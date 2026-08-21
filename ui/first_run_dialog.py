@@ -1,4 +1,5 @@
-"""Диалог первого запуска — объясняет предупреждение Windows SmartScreen."""
+# Диалог первого запуска — объясняет предупреждение Windows SmartScreen.
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QFont
 from PyQt6.QtWidgets import (

@@ -1,4 +1,5 @@
-"""Генерирует version_info.txt для PyInstaller из version.py."""
+# Генерирует version_info.txt для PyInstaller из version.py.
+
 import sys
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).parent))
 from version import VERSION

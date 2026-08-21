@@ -1,4 +1,4 @@
-"""Mod protection: enforce mod_protection rules before launching."""
+# Защита от модов: примените правила mod_protection перед запуском.
 import json
 import zipfile
 from pathlib import Path
@@ -37,14 +37,14 @@ def _enforce_strict(mode_id: str, mods_dir: Path, on_progress: ProgressCallback)
 
     actions: list[str] = []
 
-    # Remove extra files not in manifest
+    # Удалите лишние файлы, которых нет в манифесте
     if mods_dir.exists():
         for f in list(mods_dir.iterdir()):
             if f.is_file() and f.name not in manifest:
                 f.unlink()
                 actions.append(f"Удалён посторонний мод: {f.name}")
 
-    # Restore missing files from cached archive
+    # Восстановление отсутствующих файлов из кэшированного архива
     existing = {f.name for f in mods_dir.iterdir() if f.is_file()} if mods_dir.exists() else set()
     missing = manifest - existing
     if missing:
@@ -58,7 +58,8 @@ def _enforce_strict(mode_id: str, mods_dir: Path, on_progress: ProgressCallback)
                     name = Path(entry).name
                     if not name or name not in missing:
                         continue
-                    # Принимаем только записи из папки mods/ без path traversal
+                    # Принимаем только записи из папки mods/ без path traversal (обход пути)
+                    # Безопасность!
                     if not entry.startswith("mods/") or ".." in entry:
                         continue
                     target = mods_dir / name

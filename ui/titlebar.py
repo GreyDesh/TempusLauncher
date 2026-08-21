@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 
 
 class TitleBar(QWidget):
-    """Кастомный заголовок окна с кнопками сворачивания/разворачивания/закрытия."""
+    # Кастомный заголовок окна с кнопками сворачивания/разворачивания/закрытия.
 
     def __init__(self, parent: QWidget, title: str = "", show_maximize: bool = True, show_minimize: bool = True):
         super().__init__(parent)
@@ -76,7 +76,7 @@ class TitleBar(QWidget):
             self._parent.showMaximized()
             self._max_btn.setText("❐")
 
-    # ── Drag to move ──────────────────────────────────────────────────────────
+    # Перетащите для перемещения (Drag to move)
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_pos = event.globalPosition().toPoint() - self._parent.frameGeometry().topLeft()

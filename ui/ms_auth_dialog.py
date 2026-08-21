@@ -1,4 +1,5 @@
-"""Диалог авторизации Microsoft — authorization code flow (даёт refresh_token)."""
+# Диалог авторизации Microsoft — authorization code flow (даёт refresh_token).
+
 from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QTimer, QThread
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar

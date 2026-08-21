@@ -1,14 +1,14 @@
-"""Клиент чата — REST к серверу (session-токен).
+# Клиент чата — REST к серверу (session-токен).
 
-Все функции синхронные и блокирующие — вызывать из фоновых потоков, не из UI.
-Отправитель на сервере берётся из session-токена (нельзя писать от чужого имени).
+# Все функции синхронные и блокирующие — вызывать из фоновых потоков, не из UI.
+# Отправитель на сервере берётся из session-токена (нельзя писать от чужого имени).
 
-Эндпоинты:
-  POST /api/messages            {to_uuid, body, kind, payload} -> сообщение
-  GET  /api/messages/{uuid}     ?before=<id>&limit=50          -> [msg, ...]  (старые сверху)
-  POST /api/messages/{uuid}/read                               -> {ok}
-  GET  /api/messages/unread                                    -> {uuid: count}
-"""
+#  Эндпоинты:
+#  POST /api/messages            {to_uuid, body, kind, payload} -> сообщение
+#  GET  /api/messages/{uuid}     ?before=<id>&limit=50          -> [msg, ...]  (старые сверху)
+#  POST /api/messages/{uuid}/read                               -> {ok}
+#  GET  /api/messages/unread                                    -> {uuid: count}
+
 import requests
 
 

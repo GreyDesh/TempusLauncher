@@ -1,8 +1,8 @@
-"""
-Windows DPAPI — шифрование данных ключом текущей учётной записи Windows.
-Расшифровать может только тот же пользователь на том же ПК.
-Fallback: если DPAPI недоступен (не Windows / ошибка) — хранит как есть.
-"""
+
+# Windows DPAPI — шифрование данных ключом текущей учётной записи Windows.
+# Расшифровать может только тот же пользователь на том же ПК.
+# Fallback: если DPAPI недоступен (не Windows / ошибка) — хранит как есть.
+
 import ctypes
 import ctypes.wintypes
 import base64
@@ -49,7 +49,7 @@ def decrypt(ciphertext: str) -> str:
         return ciphertext  # fallback
 
 
-# ── Internal ──────────────────────────────────────────────────────────────────
+# Internal
 
 class _DATA_BLOB(ctypes.Structure):
     _fields_ = [("cbData", ctypes.wintypes.DWORD),

@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import QWidget
 
 
 class GlowButton(QWidget):
-    """Кнопка с градиентом и анимированным glow-эффектом."""
+    # Кнопка с градиентом и анимированным glow-эффектом.
     clicked = pyqtSignal()
 
     def __init__(self, text: str = "PLAY", color: str = "#3FB950", parent=None):

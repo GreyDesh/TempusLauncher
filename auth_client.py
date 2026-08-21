@@ -9,7 +9,7 @@ def _verify():
     if SERVER_CERT.exists():
         return str(SERVER_CERT)
     if getattr(sys, 'frozen', False):
-        return True  # REQUESTS_CA_BUNDLE env var set in main.py
+        return True  # Переменная env REQUESTS_CA_BUNDLE, установленная в main.py
     import certifi
     return certifi.where()
 

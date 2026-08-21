@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-# ── Настройки лаунчера (вшиты в код) ─────────────────────────────────────────
+# Настройки лаунчера (вшиты в код)
 LAUNCHER_NAME = "TempusLauncher"
 LOGIN_BACKGROUND_URL     = "timeout/background.png"
 MASKOT_LOGIN_PATH        = "timeout/maskot_login.png"   # относительно корня проекта

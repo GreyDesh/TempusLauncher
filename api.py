@@ -142,6 +142,7 @@ def fetch_launcher_config(on_progress=None) -> dict:
         on_progress("Загрузка конфигурации лаунчера...")
     launcher = _fetch_json(_launcher_config_url(), _LAUNCHER_CACHE, _LOCAL_LAUNCHER, _FALLBACK_LAUNCHER, encrypted=True)
     # Структура result сохранена; источники: java — вшит, social/фон/маскот — connect.json
+    # Нужно убрать!
     result = dict(launcher)
     result["social"] = _config.SOCIAL
     result["java"]   = _config.JAVA
@@ -156,8 +157,8 @@ def fetch_news(on_progress=None) -> list:
     return _fetch_json(NEWS_JSON_URL, _NEWS_CACHE, _LOCAL_NEWS, _FALLBACK_NEWS)
 
 
-# Кэш новостей режимов: в памяти (мгновенно в рамках сессии) + на диске (офлайн,
-# мгновенный показ при следующем запуске). По файлу на режим.
+# Кэш новостей режимов: в памяти (мгновенно в рамках сессии) + на диске (офлайн, мгновенный показ при следующем запуске). По файлу на режим.
+# Нужно для для DEBUG START LOCAL LAUNCHER TEST
 _MODE_NEWS_MEM: dict[str, list] = {}
 
 
@@ -240,8 +241,10 @@ class ConfigWatcher:
         self._on_message = on_message
         self._on_message_read = on_message_read
         self._on_connect = on_connect
-        self._on_mode_news = on_mode_news_update   # SSE 'news_updated' — новости режима
-        self._on_feed = on_feed_update             # SSE 'feed_updated' — посты-скриншоты
+        # SSE 'news_updated' — новости режима
+        self._on_mode_news = on_mode_news_update
+        # SSE 'feed_updated' — посты-скриншоты
+        self._on_feed = on_feed_update
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._sse_thread = threading.Thread(target=self._sse_run, daemon=True)
@@ -321,7 +324,7 @@ class ConfigWatcher:
         """Подключается к SSE и при событии config_updated сразу обновляет конфиг."""
         import logging, time
         log = logging.getLogger("api.sse")
-        # Ждём пока SERVER_URL заполнится из connect.json
+        # Ждём пока SERVER_URL заполнится из connect.json (теперь на главном хосте)
         self._stop.wait(5)
         while not self._stop.is_set():
             try:
@@ -332,8 +335,8 @@ class ConfigWatcher:
                 headers = auth_client.session_headers()
                 with requests.get(url, stream=True, timeout=(10, 120), verify=_get_verify(), headers=headers) as r:
                     if r.status_code in (401, 422):
-                        # 401 — сессия истекла (сервер перезапущен, токены в памяти сброшены);
-                        # 422 — токена вообще нет (заголовок не ушёл) → тоже пересоздаём сессию.
+                        # 401 — сессия истекла (сервер перезапущен) (токены в озу памяти нет)
+                        # 422 — токена вообще нет, нужно пересоздать сессию SSH
                         log.info("[SSE] %s — пересоздаю сессию", r.status_code)
                         if not auth_client.create_session():
                             log.warning("[SSE] create_session не удался (игрок не найден в БД?) — жду 15s")
@@ -343,9 +346,9 @@ class ConfigWatcher:
                         continue
                     r.raise_for_status()
                     log.info("[SSE] Соединение установлено")
-                    # Ресинк после (пере)подключения: пока не было связи (напр. рестарт
-                    # сервера) события терялись — досинхронизируем конфиг/медиа/новости
-                    # и внешние подписчики (друзья/непрочитанное).
+                    # Ресинк после пере-подключения: пока не было связи (рестарт)
+                    # Мы теряемся,пере-подключаемся конфиг/медиа/новости
+                    # И внешние подписчики (друзья/непрочитанное).
                     self._check_media()
                     self._check_launcher()
                     self._check_news()
@@ -360,8 +363,9 @@ class ConfigWatcher:
                         if line.startswith("event:") and "config_updated" in line:
                             t = time.strftime("%H:%M:%S")
                             log.info("[SSE %s] Получено обновление конфига — применяю", t)
-                            # Сначала докачиваем картинки (новая сборка тянет свои медиа),
-                            # потом обновляем список режимов — чтобы новый режим отрисовался с иконкой.
+                            # Преднамеренная загрузка контента.
+                            # Сначала докачиваем картинки, потом обновляем список режимов (новая сборка тянет свои медиа(Теперь на главном сервере)),
+                            # Необходимо чтобы новый режим отрисовался с иконкой.
                             self._check_media()
                             self._check_launcher()
                             self._check_news()
@@ -401,11 +405,10 @@ class ConfigWatcher:
                                     self._on_roles()
                                 except Exception:
                                     pass
-                            # Роль влияет и на видимость hidden-режимов (фильтр по роли
-                            # на сервере) — перечитываем список конфига.
+                            # Роль влияет и на видимость hidden-режимов (фильтр по роли дискорд)
                             self._check_launcher()
                         elif line.startswith("event:") and "message_read" in line:
-                            # проверяем ДО "message" (подстрока пересекается)
+                            # Проверяем до "message"
                             if self._on_message_read:
                                 try:
                                     self._on_message_read()

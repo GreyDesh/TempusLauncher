@@ -1,4 +1,5 @@
-"""Диалог входа через Device Code Flow — без WebEngine."""
+# Диалог входа через Device Code Flow — без WebEngine.
+
 import threading
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer
 from PyQt6.QtGui import QFont, QColor, QPainter, QLinearGradient

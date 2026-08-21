@@ -1,4 +1,5 @@
-"""Необязательный диалог предложения привязать Discord после входа через Microsoft."""
+# Необязательный диалог предложения привязать Discord после входа через Microsoft.
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout

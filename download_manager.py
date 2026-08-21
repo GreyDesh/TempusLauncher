@@ -1,4 +1,4 @@
-"""Глобальный менеджер загрузок — синглтон, живёт всё время работы лаунчера."""
+# Глобальный менеджер загрузок — синглтон, живёт всё время работы лаунчера.
 from __future__ import annotations
 from PyQt6.QtCore import QObject, pyqtSignal, QThread
 

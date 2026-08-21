@@ -1,4 +1,5 @@
-"""OpenGL рендер модели игрока из GLB файла с анимациями Blockbench."""
+# OpenGL рендер модели игрока из GLB файла с анимациями Blockbench.
+
 import ctypes
 import math
 import time
@@ -42,7 +43,7 @@ _PARSED_ANIM:  dict = {}   # model_name -> anims dict
 BLEND_DUR    = 0.25   # секунды перехода между анимациями
 
 
-# ── Математика ────────────────────────────────────────────────────────────────
+# Математика
 
 def _trs(t=None, r=None, s=None) -> np.ndarray:
     """T * R * S матрица 4x4 (аллоцирует — только при инициализации)."""
@@ -136,7 +137,7 @@ def _interp(times, values, t: float, path: str) -> np.ndarray:
     return values[i] + a * (values[i+1] - values[i])
 
 
-# ── Шейдеры ───────────────────────────────────────────────────────────────────
+# Шейдеры
 
 _VERT = """
 #version 330 core
@@ -192,7 +193,7 @@ def _make_prog():
     return p
 
 
-# ── GLB читатель ──────────────────────────────────────────────────────────────
+# GLB читатель
 
 _COMP = {5120:np.int8,5121:np.uint8,5122:np.int16,5123:np.uint16,5125:np.uint32,5126:np.float32}
 _DIMS = {'SCALAR':1,'VEC2':2,'VEC3':3,'VEC4':4,'MAT4':16}
@@ -244,14 +245,11 @@ def _parse_model(gltf):
 
 
 def _close_anim_loop(anim: dict):
-    """Делает зацикленную анимацию бесшовной.
+    #Делает зацикленную анимацию бесшовной.
 
-    Короткие каналы (right_leg до 0.46s при анимации 2.5s) просто
-    растягиваются до конца удерживанием последнего значения — нога стоит
-    неподвижно, шов не нужен.
-    Каналы полной длины чинят стык: values[-1] = values[0], чтобы
-    микроскопическое расхождение экспорта не давало рывок при loop.
-    """
+    #Короткие каналы (right_leg до 0.46s при анимации 2.5s) просто растягиваются до конца удерживанием последнего значения — нога стоит неподвижно, шов не нужен.
+    #Каналы полной длины чинят стык: values[-1] = values[0], чтобы микроскопическое расхождение экспорта не давало рывок при loop.
+
     dur = anim['duration']
     for ch in anim['channels']:
         times  = ch['times']
@@ -317,7 +315,7 @@ def _parse_anims(gltf, model_nodes: list[dict]) -> dict[str, dict]:
     return anims
 
 
-# ── GPU меш ───────────────────────────────────────────────────────────────────
+# GPU меш
 
 class _Mesh:
     __slots__ = ['vao','vbo','ibo','count','node_idx']
@@ -326,7 +324,7 @@ class _Mesh:
         self.count=count; self.node_idx=node_idx
 
 
-# ── Виджет ────────────────────────────────────────────────────────────────────
+# Виджет
 
 class PlayerGLWidget(QOpenGLWidget):
     _skin_ready = pyqtSignal(str, str)  # path, variant ("classic"|"slim")
@@ -387,7 +385,7 @@ class PlayerGLWidget(QOpenGLWidget):
         self._timer.setInterval(16)  # ~60 FPS (было 0 = без ограничения → 100% ядра)
         self._timer.start()
 
-    # ── Публичное API ─────────────────────────────────────────────────────────
+    # Публичное API
 
     def set_model(self, model: str):
         self._model_name = model
@@ -495,7 +493,7 @@ class PlayerGLWidget(QOpenGLWidget):
             self.doneCurrent()
         self.update()
 
-    # ── OpenGL ────────────────────────────────────────────────────────────────
+    # OpenGL
 
     _SS = 2  # коэффициент суперсэмплинга (2 = рендер в 2x, блит в 1x)
 
@@ -594,7 +592,7 @@ class PlayerGLWidget(QOpenGLWidget):
         except Exception as e:
             _logger.debug("paintGL skipped: %s", e)
 
-    # ── Загрузка ──────────────────────────────────────────────────────────────
+    # Загрузка
 
     def _load_model(self):
         if not _HAS_GLTF: return
@@ -734,7 +732,7 @@ class PlayerGLWidget(QOpenGLWidget):
             self.makeCurrent(); self._upload_texture(); self.doneCurrent()
         self.update()
 
-    # ── Анимация ──────────────────────────────────────────────────────────────
+    # Анимация
 
     def _snapshot_to_blend_buf(self):
         """Копирует текущий local_buf в blend_buf для последующего блендинга."""
@@ -796,7 +794,7 @@ class PlayerGLWidget(QOpenGLWidget):
         # возвращаем как node_idx → матрица (view в world_buf, не копия)
         return {nd['idx']: world[nd_map_i[nd['idx']]] for nd in self._nodes}
 
-    # ── Тик ───────────────────────────────────────────────────────────────────
+    # Тик
 
     def _tick(self):
         # контекст ещё не создан / уже уничтожен (виджет закрывают) — не трогаем GL
@@ -836,7 +834,7 @@ class PlayerGLWidget(QOpenGLWidget):
                 self._blend_from = None; self._blend_t = 0.0
         self.update()
 
-    # ── Мышь ──────────────────────────────────────────────────────────────────
+    # Мышь
 
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:

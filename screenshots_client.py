@@ -1,13 +1,13 @@
-"""Клиент публикации/ленты скриншотов (session-токен).
+#Клиент публикации/ленты скриншотов (session-токен).
 
-Функции блокирующие — звать из фоновых потоков, не из UI.
-Автор на сервере берётся из session-токена.
+# Функции блокирующие — звать из фоновых потоков, не из UI.
+# Автор на сервере берётся из session-токена.
 
-Эндпоинты:
-  POST   /api/screenshots            multipart(file=jpeg, description) -> {id}
-  GET    /api/screenshots/feed       ?before=&limit=                   -> {posts:[...]}
-  DELETE /api/screenshots/{id}                                         -> {ok}
-"""
+#  Эндпоинты:
+#  POST   /api/screenshots            multipart(file=jpeg, description) -> {id}
+#  GET    /api/screenshots/feed       ?before=&limit=                   -> {posts:[...]}
+#  DELETE /api/screenshots/{id}                                         -> {ok}
+
 import requests
 
 
