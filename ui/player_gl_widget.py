@@ -42,6 +42,10 @@ _PARSED_MODEL: dict = {}   # model_name -> (nodes, root, raw_mesh_data, tex_byte
 _PARSED_ANIM:  dict = {}   # model_name -> anims dict
 BLEND_DUR    = 0.25   # секунды перехода между анимациями
 
+# Счётчик живых GL-контекстов (используется защитой от повторной очистки).
+_GL_SEQ = 0
+_GL_LIVE = 0
+
 
 # Математика
 
@@ -331,6 +335,10 @@ class PlayerGLWidget(QOpenGLWidget):
 
     def __init__(self, model: str = "steve", parent=None, web_profile=None, transparent: bool = False):
         super().__init__(parent)
+        global _GL_SEQ, _GL_LIVE
+        _GL_SEQ += 1; _GL_LIVE += 1
+        self._gid = _GL_SEQ
+        self._cleaned = False
         self._transparent = transparent
         if transparent:
             # Прозрачный фон живого виджета: alpha в формате + композит поверх
@@ -392,13 +400,18 @@ class PlayerGLWidget(QOpenGLWidget):
         self._blend_from = None
         self._blend_t = 0.0
         if self.isValid():
-            self.makeCurrent()
-            self._load_model()
-            self._upload_texture()
-            if self._cape_path:
-                self._cape_ready = self._upload_cape()
-            self._load_anims()
-            self.doneCurrent()
+            try:
+                self.makeCurrent()
+                self._load_model()
+                self._upload_texture()
+                if self._cape_path:
+                    self._cape_ready = self._upload_cape()
+                self._load_anims()
+            except Exception as e:
+                _logger.warning("set_model GL error: %s", e)
+            finally:
+                try: self.doneCurrent()
+                except Exception: pass
         self.update()
 
     def restart_intro(self):
@@ -488,9 +501,14 @@ class PlayerGLWidget(QOpenGLWidget):
     def set_skin(self, skin_path):
         self._skin_path = Path(skin_path) if skin_path else None
         if self.isValid():
-            self.makeCurrent()
-            self._upload_texture()
-            self.doneCurrent()
+            try:
+                self.makeCurrent()
+                self._upload_texture()
+            except Exception as e:
+                _logger.warning("set_skin GL error: %s", e)
+            finally:
+                try: self.doneCurrent()
+                except Exception: pass
         self.update()
 
     # OpenGL
@@ -510,8 +528,15 @@ class PlayerGLWidget(QOpenGLWidget):
             self._ss_color = glGenRenderbuffers(1)
             self._ss_depth = glGenRenderbuffers(1)
             self._ss_w = self._ss_h = 0
+            # Освобождаем GL-ресурсы при уничтожении контекста (пикеры плодят/рушат
+            # виджеты → без очистки VAO/текстуры/шейдеры/FBO текут → сегфолт драйвера).
+            ctx = self.context()
+            if ctx is not None:
+                ctx.aboutToBeDestroyed.connect(self._cleanup_gl)
             self._load_model()
             self._upload_texture()
+            if self._cape_path:                 # плащ задан до init — догружаем
+                self._cape_ready = self._upload_cape()
             self._load_anims()
             _logger.info(f"GL ok: meshes={len(self._meshes)} anims={list(self._anims)}")
         except Exception as e:
@@ -572,7 +597,66 @@ class PlayerGLWidget(QOpenGLWidget):
             glDrawElements(GL_TRIANGLES, mesh.count, GL_UNSIGNED_SHORT, None)
         glBindVertexArray(0)
 
+    def _cleanup_gl(self):
+        """Освобождает все GL-объекты (VAO/буферы/текстуры/шейдер/FBO) при
+        уничтожении контекста — иначе они текут и драйвер сегфолтит при churn'е."""
+        global _GL_LIVE
+        if self._cleaned:
+            return
+        self._cleaned = True
+        _GL_LIVE -= 1
+        self._timer.stop()
+        try:
+            self.makeCurrent()
+            for m in self._meshes:
+                try:
+                    glDeleteVertexArrays(1, [m.vao])
+                    glDeleteBuffers(1, [m.vbo]); glDeleteBuffers(1, [m.ibo])
+                except Exception:
+                    pass
+            self._meshes.clear()
+            for tex in (self._tex, self._cape_tex):
+                if tex:
+                    try: glDeleteTextures(1, [tex])
+                    except Exception: pass
+            self._tex = self._cape_tex = None
+            if self._prog:
+                try: glDeleteProgram(self._prog)
+                except Exception: pass
+                self._prog = None
+            for fb in ("_ss_fbo",):
+                v = getattr(self, fb, None)
+                if v:
+                    try: glDeleteFramebuffers(1, [v])
+                    except Exception: pass
+            for rb in ("_ss_color", "_ss_depth"):
+                v = getattr(self, rb, None)
+                if v:
+                    try: glDeleteRenderbuffers(1, [v])
+                    except Exception: pass
+            self._ss_w = self._ss_h = 0
+        except Exception:
+            pass
+        finally:
+            try: self.doneCurrent()
+            except Exception: pass
+
+    def hideEvent(self, e):
+        # Скрыт (диалог закрывается/сворачивается) — глушим таймер, чтобы он не
+        # дёргал paintGL на уничтожаемом контексте (teardown-гонка, GLError 1282).
+        self._timer.stop()
+        super().hideEvent(e)
+
+    def showEvent(self, e):
+        # Возобновляем анимацию при показе. У офскрин-«фотографа» стоит флаг
+        # _no_auto_timer — там таймер не трогаем (снимки статичны).
+        if not getattr(self, "_no_auto_timer", False) and not self._timer.isActive():
+            self._timer.start()
+        super().showEvent(e)
+
     def paintGL(self):
+        if self._cleaned:
+            return          # контекст уже очищен — не рисуем (teardown-гонка)
         if not self._ss_w or not self._prog:
             return
         # Тендер-гонка при уничтожении виджета: контекст/шейдер могут стать
@@ -589,8 +673,8 @@ class PlayerGLWidget(QOpenGLWidget):
             glBlitFramebuffer(0, 0, self._ss_w, self._ss_h, 0, 0, w, h,
                               GL_COLOR_BUFFER_BIT, GL_LINEAR)
             glBindFramebuffer(GL_FRAMEBUFFER, dst)
-        except Exception as e:
-            _logger.debug("paintGL skipped: %s", e)
+        except Exception:
+            pass   # ожидаемая teardown-гонка (контекст уничтожается) — молча пропускаем
 
     # Загрузка
 
@@ -718,9 +802,14 @@ class PlayerGLWidget(QOpenGLWidget):
         self._cape_path = Path(cape_path) if cape_path else None
         self._cape_ready = False
         if self._cape_path and self.isValid():
-            self.makeCurrent()
-            self._cape_ready = self._upload_cape()
-            self.doneCurrent()
+            try:
+                self.makeCurrent()
+                self._cape_ready = self._upload_cape()
+            except Exception as e:
+                _logger.warning("set_cape GL error: %s", e)
+            finally:
+                try: self.doneCurrent()
+                except Exception: pass
         self.update()
 
     def _on_skin_ready(self, path: str, variant: str):

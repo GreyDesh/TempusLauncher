@@ -9,14 +9,18 @@ MASKOT_LOGIN_PATH        = "timeout/maskot_login.png"   # относительн
 # URL connect.json на GitHub — источник адреса сервера
 CONNECT_JSON_URL = "https://raw.githubusercontent.com/GreyDesh/grand_server_wiki/main/connect.json"
 
-# Auth server (заполняется из connect.json при запуске)
+# Лаунчерный API-сервер (заполняется из connect.json при запуске)
 SERVER_URL = "https://176.107.240.3:9000"
 SERVER_IP  = "176.107.240.3"
 
+# Сайт/банк (заполняется из connect.json при запуске; по умолчанию = SERVER_URL)
+SITE_URL = "https://176.107.240.3:9000"
+
 # Из connect.json (GitHub) — заполняются в fetch_connect_json
 SOCIAL         = {}   # {"telegram": ..., "discord": ...}
-MASKOT_URL     = ""   # маскот на экране логина
-BACKGROUND_URL = ""   # фон экрана логина
+# Маскот и фон логина теперь ЛОКАЛЬНЫЕ (в assets/), а не из connect.json.
+MASKOT_URL     = "assets/maskot_login.png"        # маскот на экране логина
+BACKGROUND_URL = "assets/background_launcher.jpg" # фон экрана логина/главной
 
 # Версии Java и ссылки на JRE — ВШИТЫ в лаунчер (раньше были в meta.json)
 JAVA = {
@@ -43,6 +47,10 @@ BASE_DIR  = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Pa
 
 # Путь к самоподписанному сертификату сервера (для verify= в requests)
 SERVER_CERT = BASE_DIR / "assets" / "server.crt"
+
+# False = не проверять CA (self-signed сертификат).
+# Трафик всё равно шифруется. Включить True когда будет нормальный сертификат.
+SSL_VERIFY = False
 DATA_DIR  = Path.home() / "AppData" / "Roaming" / ".grandlauncher"
 
 # Кэш храним рядом с программой (в папке установки), чтобы он удалялся при

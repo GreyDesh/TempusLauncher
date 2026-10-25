@@ -13,11 +13,8 @@ import config as _config
 
 
 def _verify():
-    import sys
-    p = _config.SERVER_CERT
-    if p.exists():
-        return str(p)
-    return True if getattr(sys, 'frozen', False) else __import__('certifi').where()
+    from config import SSL_VERIFY
+    return SSL_VERIFY
 
 log = logging.getLogger("friends")
 
@@ -463,6 +460,7 @@ class FriendRow(QWidget):
         self._uuid      = friend["uuid"]
         self._username  = friend.get("username") or "Unknown"
         self._online    = friend.get("online", False)
+        self._status    = friend.get("status", "online" if friend.get("online") else "offline")
         self._mode      = friend.get("mode")
         self._mode_id   = friend.get("mode_id")
         self._server_ip = friend.get("server_ip")
@@ -500,12 +498,8 @@ class FriendRow(QWidget):
         self._avatar.move(2, 2)
         self._avatar.setStyleSheet("background: #1a1a2e; border-radius: 6px;")
 
-        if self._online and self._mode:
-            dot_color = "#4caf50"   # зелёный — играет
-        elif self._online:
-            dot_color = "#5B8CFF"   # синий — в сети
-        else:
-            dot_color = "#333355"   # серый — офлайн
+        from ui.account_menu import status_color as _sc
+        dot_color = _sc(self._status) if self._online else "#333355"
 
         dot = QLabel(avatar_wrap)
         dot.setFixedSize(10, 10)
@@ -526,12 +520,13 @@ class FriendRow(QWidget):
         name.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         name.setStyleSheet("color: #e0e0f0; background: transparent;")
 
+        from ui.account_menu import status_color as _sc, status_label as _sl
         if self._online and self._mode:
             status_text  = self._mode
             status_color = "#4caf50"
         elif self._online:
-            status_text  = "В сети"
-            status_color = "#5B8CFF"
+            status_text  = _sl(self._status)
+            status_color = _sc(self._status)
         else:
             status_text  = "Не в сети"
             status_color = "#555570"
@@ -860,7 +855,14 @@ class FriendsPanel(QWidget):
         if not self._my_uuid:
             return
         if self.isVisible():
-            self._refresh()
+            # Дебаунс: SSE friends_updated прилетает пачками (пульсы всех друзей) —
+            # коалесцируем в одно обновление, а не плодим запросы/Loader'ы.
+            if not hasattr(self, "_refresh_debounce"):
+                self._refresh_debounce = QTimer(self)
+                self._refresh_debounce.setSingleShot(True)
+                self._refresh_debounce.setInterval(400)
+                self._refresh_debounce.timeout.connect(self._refresh)
+            self._refresh_debounce.start()
         else:
             self._refresh_indicator_only()
 

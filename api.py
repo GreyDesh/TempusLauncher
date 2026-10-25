@@ -46,11 +46,8 @@ def _write_enc(path: Path, text: str):
 
 
 def _get_verify():
-    import sys
-    from config import SERVER_CERT
-    if SERVER_CERT.exists():
-        return str(SERVER_CERT)
-    return True if getattr(sys, 'frozen', False) else __import__('certifi').where()
+    from config import SSL_VERIFY
+    return SSL_VERIFY
 
 
 def _fetch_text(url: str, timeout: int = 10) -> str | None:
@@ -106,17 +103,23 @@ def _fetch_json(url: str, cache_path: Path, local_path: Path, fallback: dict | l
 
 
 def fetch_connect_json():
-    """Загружает connect.json с GitHub: адрес сервера, соцсети, маскот, фон."""
+    """Загружает connect.json с GitHub: адрес серверов, соцсети.
+    server_url  — лаунчерный API (server_launcher, port 7531)
+    site_url    — сайт/банк (server_main, port 443)
+    """
     try:
         r = requests.get(CONNECT_JSON_URL, timeout=8, verify=True)
         data = r.json()
         url = data.get("server_url", "").rstrip("/")
         if url:
             _config.SERVER_URL = url
+        site_url = data.get("site_url", "").rstrip("/")
+        if site_url:
+            _config.SITE_URL = site_url
+        else:
+            _config.SITE_URL = _config.SERVER_URL  # fallback: один сервер
         _config.SERVER_IP      = data.get("server_ip", _config.SERVER_IP)
         _config.SOCIAL         = data.get("social", {}) or {}
-        _config.MASKOT_URL     = data.get("maskot_url", "")
-        _config.BACKGROUND_URL = data.get("background_url", "")
     except Exception:
         pass  # оставить значения по умолчанию из config.py
     _config.LAUNCHER_JSON_URL = f"{_config.SERVER_URL}/api/launcher/config"

@@ -50,7 +50,7 @@ import api
 
 
 class BgLayer(QWidget):
-    """Слой заднего фона: размытие + прозрачность через QPainter.setOpacity."""
+    # Слой заднего фона: размытие + прозрачность через QPainter.setOpacity.
     def __init__(self, parent):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -87,7 +87,7 @@ class BgLayer(QWidget):
 
 
 class MainWindow(QMainWindow):
-    _game_running_signal = pyqtSignal(bool)
+    _game_running_signal = pyqtSignal(bool, str)   # (running, mode_id)
     _roles_loaded_signal = pyqtSignal()
     _config_updated_signal = pyqtSignal(dict)
     _status_signal = pyqtSignal(str, str)  # text, color
@@ -99,6 +99,7 @@ class MainWindow(QMainWindow):
     _sse_connected_signal = pyqtSignal()   # SSE (пере)подключился -> ресинк
     _news_reload_signal = pyqtSignal()     # SSE 'news_updated' -> перезагрузить ленту
     _feed_reload_signal = pyqtSignal()     # SSE 'feed_updated' -> перезагрузить посты-скриншоты
+    _friends_update_signal = pyqtSignal()  # SSE 'friends_updated' -> маршалинг в UI-поток
 
     def __init__(self, config: dict, news: list, username: str):
         super().__init__()
@@ -140,7 +141,7 @@ class MainWindow(QMainWindow):
         screen = QApplication.primaryScreen().geometry()
         self.move((screen.width() - WINDOW_WIDTH) // 2, (screen.height() - WINDOW_HEIGHT) // 2)
 
-    # ── Build UI ──────────────────────────────────────────────────────────────
+    # Build UI
 
     def _build_ui(self, name: str):
         central = QWidget()
@@ -159,7 +160,7 @@ class MainWindow(QMainWindow):
         self._bg_b.set_opacity(0.0)
         self._active_bg = "a"
 
-        # ── Верхняя панель ────────────────────────────────────────────────────
+        # Верхняя панель
         top_bar = QWidget()
         top_bar.setObjectName("topBar")
         top_bar.setFixedHeight(56)
@@ -173,7 +174,7 @@ class MainWindow(QMainWindow):
         top_layout.setContentsMargins(16, 0, 10, 0)
         top_layout.setSpacing(0)
 
-        # ── Слева: логотип + название ─────────────────────────────────────────
+        # Слева: логотип + название
         logo_widget = QWidget()
         logo_widget.setStyleSheet("background: transparent;")
         logo_lay = QHBoxLayout(logo_widget)
@@ -203,7 +204,7 @@ class MainWindow(QMainWindow):
         div.setStyleSheet("background: rgba(255,255,255,10); border: none; max-width: 1px; margin: 10px 16px 10px 44px;")
         top_layout.addWidget(div)
 
-        # ── Центр: табы + соцсети ─────────────────────────────────────────────
+        # Центр: табы + соцсети
         tabs_widget = QWidget()
         tabs_widget.setStyleSheet("background: transparent;")
         tabs_layout = QHBoxLayout(tabs_widget)
@@ -309,7 +310,7 @@ class MainWindow(QMainWindow):
         top_layout.addWidget(tabs_widget)
         top_layout.addStretch()
 
-        # ── Справа: аккаунт + управление окном ───────────────────────────────
+        # Справа: аккаунт + управление окном
         from ui.player_widget import PlayerHeadLabel
 
         acc_widget = QWidget()
@@ -323,8 +324,8 @@ class MainWindow(QMainWindow):
         """)
         acc_widget.setCursor(Qt.CursorShape.PointingHandCursor)
         acc_layout = QHBoxLayout(acc_widget)
-        acc_layout.setContentsMargins(8, 5, 12, 5)
-        acc_layout.setSpacing(8)
+        acc_layout.setContentsMargins(6, 4, 8, 4)
+        acc_layout.setSpacing(6)
 
         self._head_label = PlayerHeadLabel(self._username, 28)
         acc_layout.addWidget(self._head_label)
@@ -336,17 +337,35 @@ class MainWindow(QMainWindow):
         acc_text_lay.setSpacing(1)
         self._acc_name_lbl = QLabel(self._username)
         self._acc_name_lbl.setStyleSheet("color: #E6EDF3; font-size: 12px; font-weight: 700; background: transparent; border: none;")
-        self._acc_status_lbl = QLabel("В сети")
-        self._acc_status_lbl.setStyleSheet("color: #5B8CFF; font-size: 10px; background: transparent; border: none;")
+        # Строка статуса: цветная точка + подпись (ручной статус, как в Discord)
+        from ui.account_menu import status_color, status_label
+        import auth_client as _ac
+        self._status = _ac._load_settings().get("status", "online")
+        # DND согласован со статусом при старте
+        try:
+            import notifications
+            notifications.center().set_dnd(self._status == "dnd")
+        except Exception:
+            pass
+        status_row = QWidget(); status_row.setStyleSheet("background: transparent; border: none;")
+        sr_lay = QHBoxLayout(status_row); sr_lay.setContentsMargins(0, 0, 0, 0); sr_lay.setSpacing(5)
+        from ui.account_menu import _Dot
+        self._status_dot = _Dot(status_color(self._status), 8)
+        sr_lay.addWidget(self._status_dot)
+        self._acc_status_lbl = QLabel(status_label(self._status))
+        self._acc_status_lbl.setStyleSheet(
+            f"color: {status_color(self._status)}; font-size: 10px; background: transparent; border: none;")
+        sr_lay.addWidget(self._acc_status_lbl)
         acc_text_lay.addWidget(self._acc_name_lbl)
-        acc_text_lay.addWidget(self._acc_status_lbl)
+        acc_text_lay.addWidget(status_row)
         acc_layout.addWidget(acc_text)
 
         chevron = QLabel("▾")
         chevron.setStyleSheet("color: #4A5260; font-size: 12px; background: transparent; border: none;")
         acc_layout.addWidget(chevron)
-        acc_widget.mousePressEvent = lambda e: self._open_account()
+        acc_widget.mousePressEvent = lambda e: self._toggle_account_menu()
         self._account_btn = acc_widget
+        self._acc_menu = None
 
         top_layout.addWidget(acc_widget)
         top_layout.addSpacing(6)
@@ -400,7 +419,7 @@ class MainWindow(QMainWindow):
         top_bar.mouseReleaseEvent = lambda e: setattr(self, "_drag_pos", None)
         self._drag_pos = None
 
-        # ── Контент ───────────────────────────────────────────────────────────
+        # Контент
         self._stack = QStackedWidget()
 
         # Главная — sidebar + content в скруглённой карточке
@@ -429,8 +448,9 @@ class MainWindow(QMainWindow):
         self._content.settings_requested.connect(self._open_settings)
         self._current_mode: dict = {}
         self._running_mode_id: str = ""   # id режима с запущенной игрой
+        self._launching_mode_id: str = ""  # id режима в фазе "Запуск игры..." (окно ещё не поднялось)
         self._running_proc = None         # Popen запущенной игры (для проверки живости)
-        self._game_running_signal.connect(self._content.set_game_running)
+        self._game_running_signal.connect(self._on_game_running)
         self._roles_loaded_signal.connect(self._on_roles_loaded)
         self._status_signal.connect(self._update_acc_status)
         # Heartbeat: раз в 20с шлём на сервер актуальный статус (играю/онлайн) и правим метку.
@@ -458,7 +478,7 @@ class MainWindow(QMainWindow):
             from PyQt6.QtWebEngineWidgets import QWebEngineView
             from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEnginePage
             from PyQt6.QtCore import QUrl
-            from config import SERVER_URL
+            from config import SITE_URL
             # Именованный профиль — cookies сохраняются на диск между запусками
             self._web_profile = QWebEngineProfile("launcher", self)
             self._web_view = QWebEngineView()
@@ -472,9 +492,9 @@ class MainWindow(QMainWindow):
             if _uuid and _dc:
                 import urllib.parse as _up
                 _params = _up.urlencode({"uuid": _uuid, "discord_id": _dc})
-                self._web_view.setUrl(QUrl(f"{SERVER_URL}/auth/auto-login?{_params}"))
+                self._web_view.setUrl(QUrl(f"{SITE_URL}/auth/auto-login?{_params}"))
             else:
-                self._web_view.setUrl(QUrl(SERVER_URL + "/"))
+                self._web_view.setUrl(QUrl(SITE_URL + "/"))
 
             web_widget = self._web_view
         except ImportError:
@@ -512,7 +532,7 @@ class MainWindow(QMainWindow):
         self._sidebar.select_all()
         QTimer.singleShot(0, lambda: self._content.show_all_modes(modes))
 
-    # ── Window controls ───────────────────────────────────────────────────────
+    # Window controls
 
     def _tb_press(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -522,7 +542,7 @@ class MainWindow(QMainWindow):
         if self._drag_pos and event.buttons() == Qt.MouseButton.LeftButton:
             self.move(event.globalPosition().toPoint() - self._drag_pos)
 
-    # ── Tab switching ─────────────────────────────────────────────────────────
+    # Tab switching
 
     def _open_in_browser(self, url: str):
         web_view = getattr(self, "_web_view", None)
@@ -543,7 +563,7 @@ class MainWindow(QMainWindow):
             btn.style().unpolish(btn)
             btn.style().polish(btn)
 
-    # ── Mode selection ────────────────────────────────────────────────────────
+    # Mode selection
 
     def _on_all_modes(self):
         modes = self._visible_modes()
@@ -568,7 +588,9 @@ class MainWindow(QMainWindow):
             self._content.show_mode(mode)
             self._update_background(mode)
         if self._running_mode_id and self._running_mode_id == mid:
-            self._content.set_game_running(True)
+            self._content.set_game_running(True, mid)
+        elif self._launching_mode_id and self._launching_mode_id == mid:
+            self._content.set_game_launching(mid)
         self._switch_tab("main")
         self._sidebar.highlight_mode(mode)
 
@@ -620,7 +642,7 @@ class MainWindow(QMainWindow):
         self._bg_timer.timeout.connect(_tick)
         self._bg_timer.start()
 
-    # ── Actions ───────────────────────────────────────────────────────────────
+    # Actions
 
     def changeEvent(self, event):
         from PyQt6.QtCore import QEvent
@@ -633,7 +655,7 @@ class MainWindow(QMainWindow):
         super().changeEvent(event)
 
     def _on_join_game(self, mode_id: str, server_ip: str):
-        """Запуск игры из панели друзей с опциональным подключением к серверу."""
+        # Запуск игры из панели друзей с опциональным подключением к серверу.
         from downloader import is_installed
         from PyQt6.QtWidgets import QMessageBox
         modes = self._config.get("modes", [])
@@ -663,6 +685,12 @@ class MainWindow(QMainWindow):
             mode = dict(mode, _join_server=host or server_ip, _join_port=port or "25565")
         self._on_play(mode)
 
+    def _on_game_running(self, running: bool, mode_id: str):
+        # Игра поднялась/закрылась — фаза "Запуск..." для этого режима завершена.
+        if self._launching_mode_id == mode_id:
+            self._launching_mode_id = ""
+        self._content.set_game_running(running, mode_id)
+
     def _on_play(self, mode: dict):
         import launcher as mc_launcher
         if getattr(self, "_running_mode_id", "") == mode.get("id", ""):
@@ -673,8 +701,9 @@ class MainWindow(QMainWindow):
                     "Вы не можете присоединиться — игра уже запущена."
                 )
             return
-        # Сразу показываем "Запуск игры..." и меняем статус
-        self._content.set_game_launching()
+        # Сразу показываем "Запуск игры..." и меняем статус (только у кнопки ЭТОГО режима)
+        self._launching_mode_id = mode.get("id", "")
+        self._content.set_game_launching(self._launching_mode_id)
         # Статус "Играет" НЕ ставим оптимистично — только когда игра реально запустилась
         # (см. _watch_game). Пока показываем нейтральный "Запуск…".
         self._status_signal.emit("Запуск…", "#FFB454")
@@ -686,7 +715,8 @@ class MainWindow(QMainWindow):
         try:
             proc = mc_launcher.launch_mode(mode, self._username)
         except Exception as e:
-            self._content.set_game_running(False)
+            self._launching_mode_id = ""
+            self._content.set_game_running(False, mode.get("id", ""))
             self._status_signal.emit("В сети", "#5B8CFF")
             self._show_log_error(str(e))
             return
@@ -714,7 +744,7 @@ class MainWindow(QMainWindow):
         _log_lines: list[str] = []
 
         def _drain_stdout():
-            """Только сливает stdout в список — никаких Qt-вызовов из потока."""
+            # Только сливает stdout в список — никаких Qt-вызовов из потока.
             for line in proc.stdout:
                 _log_lines.append(line.rstrip())
 
@@ -731,13 +761,13 @@ class MainWindow(QMainWindow):
                 # Игра не поднялась (краш/мгновенное закрытие) — возвращаем статус и уведомляем сервер
                 self._running_mode_id = ""
                 self._running_proc = None
-                self._game_running_signal.emit(False)
+                self._game_running_signal.emit(False, mode.get("id", ""))
                 QTimer.singleShot(0, _poll_timer.stop)
                 threading.Thread(target=_notify_online, args=(False,), daemon=True).start()
                 return
             _window_found[0] = True
             self._running_mode_id = mode.get("id", "")
-            self._game_running_signal.emit(True)
+            self._game_running_signal.emit(True, mode.get("id", ""))
             threading.Thread(target=_notify_online, args=(True,), daemon=True).start()
             # Сообщаем серверу что игра началась
             pt.start_session(mode.get("id", ""))
@@ -745,7 +775,7 @@ class MainWindow(QMainWindow):
             proc.wait()
             self._running_mode_id = ""
             self._running_proc = None
-            self._game_running_signal.emit(False)
+            self._game_running_signal.emit(False, mode.get("id", ""))
             QTimer.singleShot(0, _poll_timer.stop)
             threading.Thread(target=_notify_online, args=(False,), daemon=True).start()
             # Сообщаем серверу что игра закончилась — он считает время сам
@@ -813,7 +843,7 @@ class MainWindow(QMainWindow):
     def _open_discord_link(self):
         from ui.discord_auth_dialog import DiscordAuthDialog
         import config
-        dlg = DiscordAuthDialog(config.SERVER_URL, self, getattr(self, "_web_profile", None))
+        dlg = DiscordAuthDialog(config.SITE_URL, self, getattr(self, "_web_profile", None))
         def _on_linked(dc_username, discord_id, login_token):
             import auth_client
             auth_client._save_settings({"discord_id": discord_id, "discord_username": dc_username})
@@ -831,7 +861,7 @@ class MainWindow(QMainWindow):
         self._account_dlg.raise_()
 
     def _on_discord_linked(self, login_token: str):
-        """После привязки Discord — обновляем роли, гейт режима и логиним web view."""
+        # После привязки Discord — обновляем роли, гейт режима и логиним web view.
         self._friends_drawer.refresh_discord_state()
         # Единая точка обновления состояния привязки для ОБОИХ путей (аккаунт-вкладка и карточка режима):
         # тянем роли с сервера и перерисовываем текущий режим, чтобы гейт "привяжите Discord" исчез.
@@ -848,15 +878,15 @@ class MainWindow(QMainWindow):
         if not self._web_view:
             return
         from PyQt6.QtCore import QUrl
-        from config import SERVER_URL
+        from config import SITE_URL
 
         def _navigate():
             if login_token:
                 # Токен → сервер ставит session cookie
-                url = f"{SERVER_URL}/auth/launcher-login?token={login_token}"
+                url = f"{SITE_URL}/auth/launcher-login?token={login_token}"
             else:
                 # Fallback: session cookie уже в профиле — просто идём на главную
-                url = f"{SERVER_URL}/"
+                url = f"{SITE_URL}/"
             print(f"[discord_linked] navigating to {url}")
             self._web_view.setUrl(QUrl(url))
 
@@ -953,7 +983,7 @@ class MainWindow(QMainWindow):
         self._watcher = api.ConfigWatcher(
             on_launcher_update=self._on_config_updated,
             on_news_update=self._on_news_updated,
-            on_friends_update=self._friends_drawer.notify_friends_updated,
+            on_friends_update=lambda: self._friends_update_signal.emit(),
             on_media_update=self._on_media_update,
             on_roles_update=self._on_roles_update,
             on_message=lambda: self._chat_msg_signal.emit(),
@@ -964,6 +994,7 @@ class MainWindow(QMainWindow):
         )
         self._news_reload_signal.connect(self._content.reload_news)
         self._feed_reload_signal.connect(self._content.reload_feed)
+        self._friends_update_signal.connect(self._friends_drawer.notify_friends_updated)
         self._watcher.start()
 
         # Слой 2: периодический рефреш ролей Discord (страховка, если живой SSE-пуш
@@ -987,9 +1018,10 @@ class MainWindow(QMainWindow):
         alive = proc is not None and proc.poll() is None
         if not alive and self._running_mode_id:
             # Игра закрылась/умерла, но состояние не сбросилось — чиним
+            _closed_id = self._running_mode_id
             self._running_mode_id = ""
             self._running_proc = None
-            self._game_running_signal.emit(False)
+            self._game_running_signal.emit(False, _closed_id)
         mode_id = self._running_mode_id or None
         # _set_online пошлёт пульс на сервер и обновит метку ("Играет"/"В сети")
         import threading
@@ -999,14 +1031,15 @@ class MainWindow(QMainWindow):
         """Обновляет mode_id на сервере. Онлайн-статус управляется SSE-соединением."""
         import requests as _req, auth_client, config as _cfg
         try:
-            import sys
-            verify = str(_cfg.SERVER_CERT) if _cfg.SERVER_CERT.exists() else (True if getattr(sys, 'frozen', False) else __import__('certifi').where())
+            verify = _cfg.SSL_VERIFY
             headers = auth_client.session_headers()
             if not headers:
                 return
+            params = {"status": getattr(self, "_status", "online")}
+            if mode_id:
+                params["mode"] = mode_id
             _req.post(f"{_cfg.SERVER_URL}/api/player/online",
-                      params={"mode": mode_id} if mode_id else {},
-                      headers=headers, timeout=4, verify=verify)
+                      params=params, headers=headers, timeout=4, verify=verify)
         except Exception:
             pass
         if mode_id:
@@ -1015,35 +1048,79 @@ class MainWindow(QMainWindow):
             self._status_signal.emit("В сети", "#5B8CFF")
 
     def _update_acc_status(self, text: str, color: str):
+        # text/color — игровое состояние. Когда «В сети» (не в игре) — показываем
+        # РУЧНОЙ статус (в сети/не активен/не беспокоить/не в сети). Точка = ручной.
+        if text == "В сети":
+            from ui.account_menu import status_color, status_label
+            text, color = status_label(self._status), status_color(self._status)
         self._acc_status_lbl.setText(text)
         self._acc_status_lbl.setStyleSheet(
             f"color: {color}; font-size: 10px; background: transparent; border: none;")
 
+    def _toggle_account_menu(self):
+        from ui.account_menu import AccountMenu
+        if self._acc_menu is not None and self._acc_menu.isVisible():
+            self._acc_menu.close(); return
+        import auth_client
+        linked = bool(auth_client._load_settings().get("discord_id"))
+        self._acc_menu = AccountMenu(
+            self._username, self._status,
+            on_skin=self._open_account,
+            on_status=self._set_my_status,
+            on_logout=self._on_logout,
+            discord_linked=linked,
+            on_link_discord=self._open_discord_link,
+            parent=self,
+        )
+        self._acc_menu.show_under(self._account_btn)
+
+    def _set_my_status(self, status: str):
+        from ui.account_menu import status_color, status_label
+        self._status = status
+        import auth_client
+        auth_client._save_settings({"status": status})
+        # «Не беспокоить» = включить DND (глушит звук/попапы уведомлений)
+        try:
+            import notifications
+            notifications.center().set_dnd(status == "dnd")
+        except Exception:
+            pass
+        self._status_dot.set_color(status_color(status))
+        # если не в игре — сразу обновить подпись
+        if not self._running_mode_id:
+            self._acc_status_lbl.setText(status_label(status))
+            self._acc_status_lbl.setStyleSheet(
+                f"color: {status_color(status)}; font-size: 10px; background: transparent; border: none;")
+        # немедленный heartbeat со статусом (друзья увидят)
+        import threading
+        threading.Thread(target=self._set_online, args=(True, self._running_mode_id or None),
+                         daemon=True).start()
+
     def _on_config_updated(self, new_config: dict):
         self._config_updated_signal.emit(new_config)
 
-    # ── Чат: SSE-события и непрочитанное ──────────────────────────────────────
+    # Чат: SSE-события и непрочитанное
     def _handle_chat_message(self):
-        """SSE 'message': обновляем открытые окна и пересчитываем непрочитанное с уведомлением."""
+        # SSE 'message': обновляем открытые окна и пересчитываем непрочитанное с уведомлением.
         self._friends_drawer.refresh_open_chats()
         self._fetch_unread_async(notify=True)
 
     def _handle_chat_read(self):
-        """SSE 'message_read': наши сообщения прочитаны — перерисовываем галочки."""
+        # SSE 'message_read': наши сообщения прочитаны — перерисовываем галочки.
         self._friends_drawer.refresh_open_chats()
 
     def _on_sse_connected(self):
-        """SSE (пере)подключился — досинхронизируем то, что могли пропустить при обрыве."""
+        # SSE (пере)подключился — досинхронизируем то, что могли пропустить при обрыве.
         self.refresh_chat_unread()
         self._friends_drawer.notify_friends_updated()
         self._friends_drawer.refresh_open_chats()
 
     def refresh_chat_unread(self):
-        """Пересчитать непрочитанное без уведомления (старт / после открытия чата)."""
+        # Пересчитать непрочитанное без уведомления (старт / после открытия чата).
         self._fetch_unread_async(notify=False)
 
     def _preload_chats(self):
-        """Прогрев кэша всех переписок после запуска — чтобы окна открывались мгновенно."""
+        # Прогрев кэша всех переписок после запуска — чтобы окна открывались мгновенно.
         try:
             from ui.chat_window import preload_all
             preload_all()
@@ -1162,8 +1239,7 @@ class MainWindow(QMainWindow):
         self._check_app_update()
 
     def _check_app_update(self):
-        """Сверяет app.version из манифеста со своей версией (state.json в папке
-        установки, которую пишет updater) — показывает баннер обновления."""
+        #Сверяет app.version из манифеста со своей версией (state.json в папке установки, которую пишет updater) — показывает баннер обновления.
         try:
             import sys, json, requests
             from pathlib import Path
@@ -1183,9 +1259,7 @@ class MainWindow(QMainWindow):
             pass
 
     def _restart_for_update(self):
-        """Клик по баннеру обновления: запускаем detached-ожидатель, который дождётся
-        закрытия текущего лаунчера (mutex освободится) и запустит updater — тот скачает
-        новую версию и стартует лаунчер. Затем закрываем текущий экземпляр."""
+        # Баннер Updater, при нажатии закроет лаунчер (mutex освободится) и запустит updater, который скачет новую версию и стартанет лаунчер. Затем закрываем текущий экземпляр.
         import sys, subprocess
         from pathlib import Path
         root = Path(sys.executable).parent           # папка установки (base)

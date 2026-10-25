@@ -81,6 +81,7 @@ class SkinPhotographer(QObject):
         self._gl.move(-4000, -4000)
         self._gl.show()
         try:
+            self._gl._no_auto_timer = True   # showEvent не должен перезапускать таймер
             self._gl._timer.stop()   # статично — не крутим анимацию/тик
         except Exception:
             pass

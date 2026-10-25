@@ -2699,12 +2699,16 @@ class ContentPanel(QWidget):
         if isinstance(self._current, ModeView):
             self._current._banner_container.resume()
 
-    def set_game_launching(self):
-        if isinstance(self._current, ModeView):
+    def set_game_launching(self, mode_id: str = None):
+        # Меняем кнопку ТОЛЬКО если показан именно запускаемый режим (иначе запуск
+        # одного режима менял бы кнопку у другого, открытого в окне).
+        if isinstance(self._current, ModeView) and (
+                mode_id is None or self._current._mode.get("id") == mode_id):
             self._current.set_game_launching()
 
-    def set_game_running(self, running: bool):
-        if isinstance(self._current, ModeView):
+    def set_game_running(self, running: bool, mode_id: str = None):
+        if isinstance(self._current, ModeView) and (
+                mode_id is None or self._current._mode.get("id") == mode_id):
             self._current.set_game_running(running)
 
     def start_install(self):

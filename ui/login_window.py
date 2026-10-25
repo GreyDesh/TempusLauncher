@@ -214,11 +214,9 @@ class LoginWindow(QWidget):
 
         def _run():
             try:
-                import sys
-                _verify = str(config.SERVER_CERT) if config.SERVER_CERT.exists() else (True if getattr(sys, 'frozen', False) else __import__('certifi').where())
                 resp = requests.get(
                     f"{config.SERVER_URL}/api/link/discord/{uuid}",
-                    timeout=6, verify=_verify,
+                    timeout=6, verify=config.SSL_VERIFY,
                 )
                 if resp.status_code == 200:
                     data = resp.json()

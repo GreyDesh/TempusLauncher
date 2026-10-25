@@ -47,6 +47,17 @@ def _setup_logging():
     logging.getLogger("requests").setLevel(logging.WARNING)
 
 _setup_logging()
+
+# faulthandler — ловит НАТИВНЫЕ падения (segfault драйвера GL и т.п.), которые
+# не даёт обычный excepthook: при фатальном сигнале дампит Python-стек в файл.
+try:
+    import faulthandler
+    from config import DATA_DIR as _DD
+    _fault_fp = open(_DD / "gl_crash.log", "w", encoding="utf-8")
+    faulthandler.enable(file=_fault_fp, all_threads=True)
+except Exception as _fe:
+    logging.getLogger("main").warning("faulthandler не включён: %s", _fe)
+
 log = logging.getLogger("main")
 log.info("=== TempusLauncher запущен ===")
 log.info("[ssl] %s", _SSL_STATUS)

@@ -24,11 +24,8 @@ def _get_discord_id() -> str | None:
 
 
 def _verify():
-    import sys
-    from config import SERVER_CERT
-    if SERVER_CERT.exists():
-        return str(SERVER_CERT)
-    return True if getattr(sys, 'frozen', False) else __import__('certifi').where()
+    from config import SSL_VERIFY
+    return SSL_VERIFY
 
 
 def start_session(mode_id: str):

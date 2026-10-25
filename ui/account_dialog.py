@@ -627,7 +627,7 @@ class AccountDialog(QDialog):
         self._thumbnails: list[SkinThumbnail] = []
         _ensure_skins_dir()
 
-        self.setWindowTitle("Аккаунт")
+        self.setWindowTitle("Скины")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog | Qt.WindowType.Tool)
         # Ширину фиксируем, высоту — только минимум: при масштабе Windows >100% контент
         # выше 520px, и жёсткий setFixedSize резал нижнюю кнопку «Выйти из аккаунта».
@@ -696,15 +696,45 @@ class AccountDialog(QDialog):
         cid = cape_of(skin_path)
         return self._cape_tex_map.get(cid) if cid and cid != "none" else None
 
+    def _teardown_picker(self, dlg):
+        """Синхронно уничтожает GL-виджеты пикера и сам диалог ДО возврата, чтобы
+        быстрый повторный open не наложился на ещё живой/рушащийся GL-контекст
+        (перекрытие общих контекстов при AA_ShareOpenGLContexts → сегфолт драйвера)."""
+        from PyQt6.QtCore import QCoreApplication, QEvent
+        # Гасим ещё не отрисованные задания фотографа — их плитки уже уничтожаются.
+        try:
+            self._photographer._queue.clear()
+            self._photographer._busy = False
+        except Exception:
+            pass
+        try:
+            for gl in dlg.findChildren(PlayerGLWidget):
+                gl.setParent(None)
+                gl.deleteLater()
+        except Exception:
+            pass
+        dlg.setParent(None)
+        dlg.deleteLater()
+        # Форсируем отложенные удаления СЕЙЧАС → контексты уничтожаются до re-open.
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        QCoreApplication.processEvents()
+
     def _open_cape_picker(self, skin_path: str):
+        if getattr(self, "_picker_busy", False):
+            return                              # уже открыт/закрывается — гасим дребезг
+        self._picker_busy = True
         variant = variant_of(skin_path)
         dlg = CapePickerDialog(skin_path, variant, cape_of(skin_path),
                                self._owned_capes, self._cape_tex_map,
                                self._photographer, self, self._web_profile)
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            _save_cape(Path(skin_path).name, dlg.chosen)
-            if self._selected_skin_path == skin_path:
-                self._model.set_cape(self._preview_cape_for(skin_path))
+        try:
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                _save_cape(Path(skin_path).name, dlg.chosen)
+                if self._selected_skin_path == skin_path:
+                    self._model.set_cape(self._preview_cape_for(skin_path))
+        finally:
+            self._teardown_picker(dlg)
+            self._picker_busy = False
 
     def showEvent(self, e):
         super().showEvent(e)
@@ -750,7 +780,7 @@ class AccountDialog(QDialog):
         root.setSpacing(0)
 
         from ui.titlebar import TitleBar
-        tb = TitleBar(self, f"Аккаунт  ·  {username}", show_maximize=False, show_minimize=False)
+        tb = TitleBar(self, f"Скины  ·  {username}", show_maximize=False, show_minimize=False)
         tb.setFixedWidth(877)
         root.addWidget(tb)
 
@@ -823,24 +853,8 @@ class AccountDialog(QDialog):
         self._discord_widget = self._build_discord_section()
         lay.addWidget(self._discord_widget)
 
-        # Не беспокоить (DND)
-        lay.addWidget(self._build_dnd_row())
-
+        # «Не беспокоить» и «Выйти» перенесены в меню аккаунта (статус + выход).
         lay.addStretch()
-
-        logout_btn = QPushButton("Выйти из аккаунта")
-        logout_btn.setFixedHeight(38)
-        logout_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        logout_btn.setStyleSheet("""
-            QPushButton {
-                background: rgba(255,92,92,150);
-                color: #fff; border: none; border-radius: 8px;
-                font-weight: 600; font-size: 13px;
-            }
-            QPushButton:hover { background: rgba(255,92,92,210); }
-        """)
-        logout_btn.clicked.connect(self._do_logout)
-        lay.addWidget(logout_btn)
 
         return w
 
@@ -1037,17 +1051,24 @@ class AccountDialog(QDialog):
         self._reload_skins()
 
     def _on_change_type(self, path: str):
+        if getattr(self, "_picker_busy", False):
+            return
+        self._picker_busy = True
         dlg = SkinVariantDialog(path, self, self._web_profile)
-        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.chosen:
-            _save_variant(Path(path).name, dlg.chosen)
-            # перерисовать миниатюру этого скина под новый тип
-            for t in self._thumbnails:
-                if t.path == path and self._photographer:
-                    self._photographer.request(
-                        path, dlg.chosen, lambda px, th=t: self._apply_thumb_render(th, px))
-            # если этот скин выбран — обновить большой превью
-            if self._selected_skin_path == path:
-                self._on_skin_clicked(path)
+        try:
+            if dlg.exec() == QDialog.DialogCode.Accepted and dlg.chosen:
+                _save_variant(Path(path).name, dlg.chosen)
+                # перерисовать миниатюру этого скина под новый тип
+                for t in self._thumbnails:
+                    if t.path == path and self._photographer:
+                        self._photographer.request(
+                            path, dlg.chosen, lambda px, th=t: self._apply_thumb_render(th, px))
+                # если этот скин выбран — обновить большой превью
+                if self._selected_skin_path == path:
+                    self._on_skin_clicked(path)
+        finally:
+            self._teardown_picker(dlg)
+            self._picker_busy = False
 
     def _on_delete_skin(self, path: str):
         if QMessageBox.question(
@@ -1288,7 +1309,7 @@ class AccountDialog(QDialog):
     def _link_discord(self):
         from ui.discord_auth_dialog import DiscordAuthDialog
         import config
-        dlg = DiscordAuthDialog(config.SERVER_URL, self, self._web_profile)
+        dlg = DiscordAuthDialog(config.SITE_URL, self, self._web_profile)
         def _on_linked(dc_username: str, discord_id: str, login_token: str):
             auth_client._save_settings({"discord_id": discord_id, "discord_username": dc_username})
             self._refresh_discord_section()

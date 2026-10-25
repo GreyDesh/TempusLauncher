@@ -4,14 +4,8 @@ from config import SETTINGS_FILE, DEV_BYPASS_AUTH, DEV_USERNAME
 
 
 def _verify():
-    import sys
-    from config import SERVER_CERT
-    if SERVER_CERT.exists():
-        return str(SERVER_CERT)
-    if getattr(sys, 'frozen', False):
-        return True  # Переменная env REQUESTS_CA_BUNDLE, установленная в main.py
-    import certifi
-    return certifi.where()
+    from config import SSL_VERIFY
+    return SSL_VERIFY
 
 # Кеш ролей Discord — заполняется при старте лаунчера
 _discord_roles: set[str] = set()
