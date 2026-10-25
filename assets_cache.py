@@ -61,7 +61,8 @@ class PixmapLoader(QRunnable):
             path = _url_to_path(self.url)
             if not path.exists():
                 try:
-                    r = requests.get(self.url, timeout=15)
+                    from config import SSL_VERIFY
+                    r = requests.get(self.url, timeout=15, verify=SSL_VERIFY)
                     r.raise_for_status()
                     path.write_bytes(r.content)
                 except Exception:
@@ -111,7 +112,8 @@ class AssetCache:
             path = _url_to_path(url)
             if not path.exists():
                 try:
-                    r = requests.get(url, timeout=15)
+                    from config import SSL_VERIFY
+                    r = requests.get(url, timeout=15, verify=SSL_VERIFY)
                     r.raise_for_status()
                     path.write_bytes(r.content)
                 except Exception:
