@@ -214,7 +214,7 @@ class MainWindow(QMainWindow):
         from ui.assets import svg_icon as _svg
         from PyQt6.QtCore import QSize as _QSize
         self._tab_btns: dict[str, QPushButton] = {}
-        for key, label, icon in [("main", "Главная", "home.svg"), ("web", "Сайт", "globe.svg")]:
+        for key, label, icon in [("main", "Главная", "home.svg")]:  # ("web", "Сайт", "globe.svg") — временно скрыто
             btn = QPushButton(f"  {label}")
             btn.setProperty("class", "tab")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -227,50 +227,51 @@ class MainWindow(QMainWindow):
             tabs_layout.addWidget(btn)
             self._tab_btns[key] = btn
 
-        # Hover-меню на кнопке "Сайт"
-        _web_btn = self._tab_btns["web"]
-        _web_btn.setProperty("_has_site_menu", True)
+        # Hover-меню на кнопке "Сайт" (кнопка временно скрыта — код сохранён)
+        if "web" in self._tab_btns:
+            _web_btn = self._tab_btns["web"]
+            _web_btn.setProperty("_has_site_menu", True)
 
-        from PyQt6.QtWidgets import QMenu
-        from PyQt6.QtGui import QAction
-        _site_menu = QMenu(self)
-        _site_menu.setStyleSheet("""
-            QMenu {
-                background: rgba(13,17,23,240);
-                border: 1px solid rgba(255,255,255,12);
-                border-radius: 8px;
-                padding: 4px;
-                color: #c8c8e0;
-                font-size: 12px;
-            }
-            QMenu::item {
-                padding: 7px 20px 7px 12px;
-                border-radius: 6px;
-            }
-            QMenu::item:selected { background: rgba(255,255,255,10); }
-            QMenu::separator { height: 1px; background: rgba(255,255,255,8); margin: 3px 8px; }
-        """)
-        for _lbl, _url, _ico in [
-            ("Карта",    "https://hyligans.ru/map",       "map_marker.svg"),
-            ("Вики",     "https://hyligans.ru/wiki",      "info.svg"),
-            ("Гильдии",  "https://hyligans.ru/guilds",    "users_alt.svg"),
-            ("Курьерка", "https://hyligans.ru/delivery",  "truck.svg"),
-            ("Банк",     "https://hyligans.ru/dashboard", "bank.svg"),
-        ]:
-            act = QAction(_lbl, _site_menu)
-            try:
-                act.setIcon(_svg(_ico, "#8888aa", 16))
-            except Exception:
-                pass
-            act.triggered.connect(lambda checked, u=_url: self._open_in_browser(u))
-            _site_menu.addAction(act)
+            from PyQt6.QtWidgets import QMenu
+            from PyQt6.QtGui import QAction
+            _site_menu = QMenu(self)
+            _site_menu.setStyleSheet("""
+                QMenu {
+                    background: rgba(13,17,23,240);
+                    border: 1px solid rgba(255,255,255,12);
+                    border-radius: 8px;
+                    padding: 4px;
+                    color: #c8c8e0;
+                    font-size: 12px;
+                }
+                QMenu::item {
+                    padding: 7px 20px 7px 12px;
+                    border-radius: 6px;
+                }
+                QMenu::item:selected { background: rgba(255,255,255,10); }
+                QMenu::separator { height: 1px; background: rgba(255,255,255,8); margin: 3px 8px; }
+            """)
+            for _lbl, _url, _ico in [
+                ("Карта",    "https://hyligans.ru/map",       "map_marker.svg"),
+                ("Вики",     "https://hyligans.ru/wiki",      "info.svg"),
+                ("Гильдии",  "https://hyligans.ru/guilds",    "users_alt.svg"),
+                ("Курьерка", "https://hyligans.ru/delivery",  "truck.svg"),
+                ("Банк",     "https://hyligans.ru/dashboard", "bank.svg"),
+            ]:
+                act = QAction(_lbl, _site_menu)
+                try:
+                    act.setIcon(_svg(_ico, "#8888aa", 16))
+                except Exception:
+                    pass
+                act.triggered.connect(lambda checked, u=_url: self._open_in_browser(u))
+                _site_menu.addAction(act)
 
-        def _show_site_menu():
-            pos = _web_btn.mapToGlobal(_web_btn.rect().bottomLeft())
-            _site_menu.popup(pos)
+            def _show_site_menu():
+                pos = _web_btn.mapToGlobal(_web_btn.rect().bottomLeft())
+                _site_menu.popup(pos)
 
-        _web_btn.clicked.disconnect()
-        _web_btn.clicked.connect(_show_site_menu)
+            _web_btn.clicked.disconnect()
+            _web_btn.clicked.connect(_show_site_menu)
 
         # Соцсети
         import webbrowser

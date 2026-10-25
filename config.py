@@ -51,6 +51,9 @@ SERVER_CERT = BASE_DIR / "assets" / "server.crt"
 # False = не проверять CA (self-signed сертификат).
 # Трафик всё равно шифруется. Включить True когда будет нормальный сертификат.
 SSL_VERIFY = False
+if not SSL_VERIFY:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 DATA_DIR  = Path.home() / "AppData" / "Roaming" / ".grandlauncher"
 
 # Кэш храним рядом с программой (в папке установки), чтобы он удалялся при

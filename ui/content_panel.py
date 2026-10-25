@@ -2198,7 +2198,10 @@ class ModeView(QWidget):
             self._render_news(cached, auto_switch=False)   # кэш — рисуем тихо, без смены вкладки
         def _run():
             items = api.fetch_mode_news(mode_id)
-            self._news_loaded.emit(items)
+            try:
+                self._news_loaded.emit(items)
+            except RuntimeError:
+                pass  # ModeView удалён — переключили режим пока качалось
         threading.Thread(target=_run, daemon=True).start()
 
     def _make_feed_page(self, placeholder: str):
@@ -2254,7 +2257,10 @@ class ModeView(QWidget):
         import threading, screenshots_client
         def _run():
             posts = screenshots_client.fetch_feed()
-            self._feed_loaded.emit(posts)
+            try:
+                self._feed_loaded.emit(posts)
+            except RuntimeError:
+                pass  # ModeView удалён — переключили режим пока качалось
         threading.Thread(target=_run, daemon=True).start()
 
     def _on_feed_loaded(self, posts: list):

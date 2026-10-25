@@ -922,8 +922,9 @@ class FriendsPanel(QWidget):
         self._no_discord_widget = QWidget()
         self._no_discord_widget.setStyleSheet("background: transparent;")
         no_dc_lay = QVBoxLayout(self._no_discord_widget)
-        no_dc_lay.setContentsMargins(0, 20, 0, 0)
+        no_dc_lay.setContentsMargins(0, 0, 0, 0)
         no_dc_lay.setSpacing(12)
+        no_dc_lay.addStretch(1)
 
         mimi = QLabel()
         mimi.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -932,7 +933,7 @@ class FriendsPanel(QWidget):
         mimi_px = QPixmap(mimi_path)
         if not mimi_px.isNull():
             mimi.setPixmap(mimi_px.scaledToWidth(120, Qt.TransformationMode.SmoothTransformation))
-        no_dc_lay.addWidget(mimi)
+        no_dc_lay.addWidget(mimi, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self._no_discord_lbl = QLabel(
             "Привяжите Discord в настройках\nаккаунта чтобы добавлять друзей"
@@ -940,10 +941,11 @@ class FriendsPanel(QWidget):
         self._no_discord_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._no_discord_lbl.setWordWrap(True)
         self._no_discord_lbl.setStyleSheet("color: #444466; font-size: 12px;")
-        no_dc_lay.addWidget(self._no_discord_lbl)
+        no_dc_lay.addWidget(self._no_discord_lbl, alignment=Qt.AlignmentFlag.AlignCenter)
+        no_dc_lay.addStretch(1)
 
         self._no_discord_widget.hide()
-        lay.addWidget(self._no_discord_widget)
+        lay.addWidget(self._no_discord_widget, 1)
 
         # Основной контент (скрывается если нет Discord)
         self._content_widget = QWidget()
