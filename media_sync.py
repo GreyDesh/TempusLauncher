@@ -16,7 +16,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import config as _config
-from config import MEDIA_CACHE_DIR
+from config import MEDIA_CACHE_DIR, SSL_VERIFY
 
 _STATE = MEDIA_CACHE_DIR / "_state.json"     # {имя: sha256} — что уже скачано
 _BUNDLE_THRESHOLD = 0.5                        # >половины изменилось -> брать бандл
@@ -52,7 +52,7 @@ def sync(on_progress=None) -> bool:
     MEDIA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     base = _config.SERVER_URL
     try:
-        man = requests.get(f"{base}/api/launcher/media/manifest", timeout=10).json()
+        man = requests.get(f"{base}/api/launcher/media/manifest", timeout=10, verify=SSL_VERIFY).json()
     except Exception:
         return False  # нет сети — работаем на том, что уже в кеше
 
@@ -90,7 +90,7 @@ def _download_bundle(base, man, on_progress):
     if url.startswith("/"):
         url = base + url
     try:
-        data = requests.get(url, timeout=90).content
+        data = requests.get(url, timeout=90, verify=SSL_VERIFY).content
     except Exception:
         return
     want = man.get("bundle", {}).get("sha256", "")
@@ -110,7 +110,7 @@ def _download_individual(base, changed, files, on_progress):
 
     def _one(name):
         try:
-            data = requests.get(f"{base}/api/launcher/media/{name}", timeout=30).content
+            data = requests.get(f"{base}/api/launcher/media/{name}", timeout=30, verify=SSL_VERIFY).content
             if _sha(data) == files[name].get("sha256"):
                 (MEDIA_CACHE_DIR / name).write_bytes(data)
         except Exception:
