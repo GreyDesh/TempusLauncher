@@ -1240,19 +1240,30 @@ class MainWindow(QMainWindow):
         self._check_app_update()
 
     def _check_app_update(self):
-        #Сверяет app.version из манифеста со своей версией (state.json в папке установки, которую пишет updater) — показывает баннер обновления.
+        # Сверяет версию с GitHub Releases (там лежит app.zip). Fallback — manifest.json на сервере.
         try:
             import sys, json, requests
             from pathlib import Path
-            from config import SERVER_URL
+            from config import SERVER_URL, SSL_VERIFY
             if not hasattr(self, "_update_shown_ver"):
                 self._update_shown_ver = ""
             state_f = Path(sys.executable).parent / "state.json"
             if not state_f.exists():
-                return  # dev или старая схема — своей версии нет
+                return
             running = json.loads(state_f.read_text(encoding="utf-8")).get("app_ver", "")
-            latest = (requests.get(f"{SERVER_URL}/api/launcher/manifest", timeout=6)
-                      .json().get("app") or {}).get("version", "")
+            latest = ""
+            try:
+                gh = requests.get(
+                    "https://api.github.com/repos/GreyDesh/TempusLauncher/releases/latest",
+                    timeout=6,
+                ).json()
+                latest = (gh.get("tag_name") or "").lstrip("v")
+            except Exception:
+                pass
+            if not latest:
+                latest = (requests.get(f"{SERVER_URL}/api/launcher/manifest",
+                                       timeout=6, verify=SSL_VERIFY)
+                          .json().get("app") or {}).get("version", "")
             if running and latest and latest != running and latest != self._update_shown_ver:
                 self._update_shown_ver = latest
                 self._sidebar.show_update_banner(latest)
