@@ -16,13 +16,13 @@ def _verify():
     return SSL_VERIFY
 
 
-def publish(jpeg_bytes: bytes, description: str = "") -> dict | None:
+def publish(jpeg_bytes: bytes, description: str = "", mode_id: str = "") -> dict | None:
     import config, auth_client
     try:
         r = requests.post(
             f"{config.SERVER_URL}/api/screenshots",
             files={"file": ("screenshot.jpg", jpeg_bytes, "image/jpeg")},
-            data={"description": description or ""},
+            data={"description": description or "", "mode_id": mode_id or ""},
             headers=auth_client.session_headers(), timeout=30, verify=_verify(),
         )
         if r.status_code == 200:
@@ -32,13 +32,15 @@ def publish(jpeg_bytes: bytes, description: str = "") -> dict | None:
     return None
 
 
-def fetch_feed(before: int = 0, limit: int = 30) -> list[dict]:
+def fetch_feed(before: int = 0, limit: int = 30, mode_id: str = "") -> list[dict]:
     """Свои + друзей посты. image приходит относительным — подставляем SERVER_URL."""
     import config, auth_client
     try:
         params = {"limit": limit}
         if before:
             params["before"] = before
+        if mode_id:
+            params["mode_id"] = mode_id
         r = requests.get(
             f"{config.SERVER_URL}/api/screenshots/feed",
             params=params, headers=auth_client.session_headers(), timeout=10, verify=_verify(),

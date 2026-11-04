@@ -18,6 +18,16 @@ STATUS_META = {
 STATUS_ORDER = ["online", "idle", "dnd", "invisible"]
 
 
+def app_version() -> str:
+    """Версия установленного лаунчера. Пишется в бандл при сборке (version.py,
+    из manifest app.version). В dev-режиме (из исходников) файла нет → пусто."""
+    try:
+        from version import VERSION  # зашивается build.ps1 в app-бандл
+        return str(VERSION).strip()
+    except Exception:
+        return ""
+
+
 def status_color(status: str) -> str:
     return STATUS_META.get(status, STATUS_META["online"])[0]
 
@@ -132,6 +142,16 @@ class AccountMenu(QWidget):
         out = _Row("Выйти из аккаунта", icon="door_open.svg", danger=True)
         out.clicked.connect(lambda: self._act(on_logout))
         lay.addWidget(out)
+
+        # Версия лаунчера — мелкой приглушённой строкой под «Выйти»
+        ver = app_version()
+        if ver:
+            ver_lbl = QLabel(f"Версия {ver}")
+            ver_lbl.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            ver_lbl.setStyleSheet(
+                "color: #5a6474; font-size: 10px; background: transparent;"
+                " border: none; padding: 4px 0 1px;")
+            lay.addWidget(ver_lbl)
 
         self._panel.setFixedWidth(236)   # чтобы подписи статусов/«Выйти» не обрезались
         self._panel.adjustSize()

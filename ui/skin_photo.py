@@ -94,6 +94,7 @@ class SkinPhotographer(QObject):
         """Закрыть офскрин-окно рендера (top-level, не дочернее)."""
         self._queue.clear()
         try:
+            self._gl._cleanup_gl()
             self._gl.close()
             self._gl.deleteLater()
         except Exception:

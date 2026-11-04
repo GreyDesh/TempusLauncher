@@ -594,6 +594,11 @@ class FriendRow(QWidget):
 
     def _cleanup_hover(self):
         if self._hover_card:
+            try:
+                if self._hover_card._gl:
+                    self._hover_card._gl._cleanup_gl()
+            except Exception:
+                pass
             self._hover_card.deleteLater()
             self._hover_card = None
 

@@ -709,6 +709,7 @@ class AccountDialog(QDialog):
             pass
         try:
             for gl in dlg.findChildren(PlayerGLWidget):
+                gl._cleanup_gl()
                 gl.setParent(None)
                 gl.deleteLater()
         except Exception:
@@ -1141,10 +1142,13 @@ class AccountDialog(QDialog):
             shutil.copy2(path, dest)
         # Спросить тип модели (две живые модельки с dance.arm)
         dlg = SkinVariantDialog(str(dest), self, self._web_profile)
-        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.chosen:
-            _save_variant(dest.name, dlg.chosen)
-        elif not _load_variants().get(dest.name):
-            _save_variant(dest.name, "classic")   # отменил — дефолт, чтобы не спрашивать вечно
+        try:
+            if dlg.exec() == QDialog.DialogCode.Accepted and dlg.chosen:
+                _save_variant(dest.name, dlg.chosen)
+            elif not _load_variants().get(dest.name):
+                _save_variant(dest.name, "classic")   # отменил — дефолт, чтобы не спрашивать вечно
+        finally:
+            self._teardown_picker(dlg)
         # Затем спросить плащ (можно «Без плаща»)
         self._open_cape_picker(str(dest))
         self._reload_skins()

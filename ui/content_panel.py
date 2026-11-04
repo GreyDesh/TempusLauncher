@@ -1491,9 +1491,10 @@ class PublishShotDialog(QDialog):
     published = pyqtSignal()
     _result = pyqtSignal(bool, str)   # (ok, error) из фонового потока
 
-    def __init__(self, path: str, parent=None):
+    def __init__(self, path: str, parent=None, mode_id: str = ""):
         super().__init__(parent)
         self._path = path
+        self._mode_id = mode_id
         self.setWindowTitle("Опубликовать скриншот")
         self.setMinimumWidth(400)
         self.setStyleSheet(
@@ -1569,7 +1570,7 @@ class PublishShotDialog(QDialog):
                 self._result.emit(False, "Не удалось прочитать изображение")
                 return
             import screenshots_client
-            res = screenshots_client.publish(data, desc)
+            res = screenshots_client.publish(data, desc, self._mode_id)
             if res and res.get("success"):
                 self._result.emit(True, "")
             else:
@@ -2256,7 +2257,7 @@ class ModeView(QWidget):
         """Тянет посты-скриншоты (свои + друзей) в фоне для ленты «Главная»."""
         import threading, screenshots_client
         def _run():
-            posts = screenshots_client.fetch_feed()
+            posts = screenshots_client.fetch_feed(mode_id=self._mode.get("id", ""))
             try:
                 self._feed_loaded.emit(posts)
             except RuntimeError:
@@ -2368,7 +2369,7 @@ class ModeView(QWidget):
     def _open_publish_dialog(self, path: str):
         if not path:
             return
-        dlg = PublishShotDialog(path, self.window())
+        dlg = PublishShotDialog(path, self.window(), mode_id=self._mode.get("id", ""))
         dlg.published.connect(self._load_feed_posts)   # опубликовали → обновить ленту
         dlg.exec()
 
