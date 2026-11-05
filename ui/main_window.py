@@ -688,8 +688,11 @@ class MainWindow(QMainWindow):
             self._content.start_install()
             return
         if server_ip:
-            host, _, port = server_ip.rpartition(":")
-            mode = dict(mode, _join_server=host or server_ip, _join_port=port or "25565")
+            if ":" in server_ip:
+                host, _, port = server_ip.rpartition(":")
+            else:
+                host, port = server_ip, "25565"
+            mode = dict(mode, _join_server=host, _join_port=port or "25565")
         self._on_play(mode)
 
     def _on_game_running(self, running: bool, mode_id: str):

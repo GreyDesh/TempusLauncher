@@ -271,7 +271,12 @@ def launch_mode(mode: dict, username: str) -> subprocess.Popen:
     join_server = mode.get("_join_server")
     join_port   = mode.get("_join_port", "25565")
     if join_server:
-        cmd += ["--server", join_server, "--port", str(join_port)]
+        # Проверяем, не число ли join_port (защита от случайной передачи хоста в порт)
+        try:
+            port_num = int(str(join_port).strip())
+        except (ValueError, TypeError):
+            port_num = 25565
+        cmd += ["--server", str(join_server).strip(), "--port", str(port_num)]
 
     proc = subprocess.Popen(
         cmd,
