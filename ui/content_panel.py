@@ -304,12 +304,13 @@ class BannerContainer(QWidget):
             sg.setColorAt(0, QColor(10, 13, 18, 120))
             sg.setColorAt(1, QColor(10, 13, 18, 0))
             p.fillRect(0, 0, w, h, sg)
+        # Название режима (логотип или текст)
         if self._title_px and not self._title_px.isNull():
-            logo_h = 208
+            logo_h = min(220, max(140, int(h * 0.6)))
             logo_px = self._title_px.scaledToHeight(logo_h, Qt.TransformationMode.SmoothTransformation)
-            p.drawPixmap(12, h - logo_h + 20, logo_px)
+            p.drawPixmap(12, h - logo_h + 16, logo_px)
         elif self._name:
-            p.setFont(QFont("Rubik", 56, QFont.Weight.Bold))
+            p.setFont(QFont("Rubik", max(28, min(56, int(h * 0.16))), QFont.Weight.Bold))
             p.setPen(QColor(230, 237, 243))
             p.drawText(24, h - 22, self._name)
 
@@ -537,14 +538,14 @@ class HeroBanner(QWidget):
 
         # Название режима (логотип или текст)
         if self._title_px and not self._title_px.isNull():
-            logo_h = 208
+            logo_h = min(220, max(140, int(h * 0.6)))
             logo_px = self._title_px.scaledToHeight(logo_h, Qt.TransformationMode.SmoothTransformation)
-            p.drawPixmap(12, h - logo_h + 20, logo_px)
+            p.drawPixmap(12, h - logo_h + 16, logo_px)
         elif self._name:
             global _MINECRAFT_FONT
             if _MINECRAFT_FONT is None:
                 _MINECRAFT_FONT = _load_minecraft_font()
-            p.setFont(QFont("Rubik", 56, QFont.Weight.Bold))
+            p.setFont(QFont("Rubik", max(28, min(56, int(h * 0.16))), QFont.Weight.Bold))
             p.setPen(QColor(230, 237, 243))
             p.drawText(24, h - 22, self._name)
 
@@ -2029,10 +2030,10 @@ class ModeView(QWidget):
         bottom_row.addWidget(_vline())
 
         # ── Правая колонка: статистика (той же ширины) ────────────────────────
-        right = QWidget()
-        right.setFixedWidth(SIDEBAR_WIDTH)
-        right.setStyleSheet("background: transparent;")
-        right_lay = QVBoxLayout(right)
+        self._right_col = QWidget()
+        self._right_col.setFixedWidth(SIDEBAR_WIDTH)
+        self._right_col.setStyleSheet("background: transparent;")
+        right_lay = QVBoxLayout(self._right_col)
         right_lay.setContentsMargins(16, 12, 16, 16)
         right_lay.setSpacing(4)
 
@@ -2057,7 +2058,7 @@ class ModeView(QWidget):
 
         right_lay.addStretch()
 
-        bottom_row.addWidget(right)
+        bottom_row.addWidget(self._right_col)
         root.addWidget(bottom, 1)
         self._update_play_btn()
         # Если загрузка уже идёт — подключиться к ней
@@ -2278,8 +2279,10 @@ class ModeView(QWidget):
                 lay.takeAt(i)
                 w.deleteLater()
         # Группируем посты по автору+дню (посты приходят свежие сверху → ts = первая дата).
+        # Внутри каждой группы посты также гарантированно сортируются от новых к старым.
         groups, order = {}, []
-        for p in self._feed_posts:
+        sorted_feed = sorted(self._feed_posts, key=lambda p: (p.get("created_at") or "", p.get("id") or 0), reverse=True)
+        for p in sorted_feed:
             key = ((p.get("author_uuid") or ""), (p.get("created_at") or "")[:10])
             g = groups.get(key)
             if g is None:
@@ -2331,7 +2334,8 @@ class ModeView(QWidget):
             return []
         exts = (".png", ".jpg", ".jpeg", ".webp")
         files = [p for p in d.iterdir() if p.is_file() and p.suffix.lower() in exts]
-        files.sort(key=lambda p: p.stat().st_mtime, reverse=True)   # новые сверху
+        # Сортировка от новых к старым: по mtime и имени файла (стандартные имена MC формата YYYY-MM-DD_HH.MM.SS)
+        files.sort(key=lambda p: (p.stat().st_mtime, p.name), reverse=True)
         return files
 
     def _load_shots(self):
@@ -2449,6 +2453,22 @@ class ModeView(QWidget):
         self._play_btn.setEnabled(True)
         self._update_play_btn()
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        w = self.width()
+        if w > 0 and hasattr(self, "_banner_container"):
+            # Пропорциональная высота шапки: ~28% ширины контента, от 260px до 420px
+            target_h = max(260, min(420, int(w * 0.28)))
+            if self._banner_container.height() != target_h:
+                self._banner_container.setFixedHeight(target_h)
+
+        if w > 0 and hasattr(self, "_right_col"):
+            # Пропорциональная правая колонка: от 230px до 320px
+            from config import SIDEBAR_WIDTH
+            target_rw = max(SIDEBAR_WIDTH, min(320, int(w * 0.22)))
+            if self._right_col.width() != target_rw:
+                self._right_col.setFixedWidth(target_rw)
+
 
 # ── ModeThumb — эскиз режима в сетке ─────────────────────────────────────────
 
@@ -2460,13 +2480,23 @@ class ModeThumb(QWidget):
         self._mode = mode
         self._banner_px: QPixmap | None = None
         self._hover = False
-        self.setFixedHeight(150)
-        self.setMinimumWidth(200)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         url = mode.get("banner_url") or mode.get("background_blur_url", "")
         if url:
             AssetCache.load(url, self._on_banner)
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, width: int) -> int:
+        return max(1, width * 9 // 16)
+
+    def sizeHint(self) -> QSize:
+        return QSize(300, 300 * 9 // 16)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(200, 200 * 9 // 16)
 
     def _on_banner(self, url: str, px: QPixmap):
         self._banner_px = px
@@ -2546,21 +2576,13 @@ class AllModesView(QWidget):
 
         grid_w = QWidget()
         grid_w.setStyleSheet("background: transparent;")
-        from PyQt6.QtWidgets import QGridLayout
-        grid = QGridLayout(grid_w)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setSpacing(12)
+        flow = FlowLayout(grid_w, spacing=16, min_tile=280)
 
-        cols = 3
-        for col in range(cols):
-            grid.setColumnStretch(col, 1)
-
-        for i, mode in enumerate(modes):
+        for mode in modes:
             thumb = ModeThumb(mode)
             thumb.clicked.connect(self.mode_selected)
-            grid.addWidget(thumb, i // cols, i % cols)
+            flow.addWidget(thumb)
 
-        grid.setRowStretch(grid.rowCount(), 1)
         scroll.setWidget(grid_w)
         root.addWidget(scroll, 1)
 

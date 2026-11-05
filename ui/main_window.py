@@ -6,10 +6,8 @@ from PyQt6.QtWidgets import (
 )
 
 
-class WinControlBtn(QWidget):
-    # Кнопка управления окном — кастомный виджет, не подпадает под глобальный QSS QPushButton.
-    clicked = pyqtSignal()
-
+class WinControlBtn(QPushButton):
+    # Кнопка управления окном — наследуем от QPushButton для надёжной отработки одиночных кликов
     def __init__(self, text: str, fg: QColor, hover_bg: QColor, parent=None):
         super().__init__(parent)
         self._text = text
@@ -19,11 +17,13 @@ class WinControlBtn(QWidget):
         self.setFixedSize(32, 32)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-    def enterEvent(self, e): self._hover = True; self.update()
-    def leaveEvent(self, e): self._hover = False; self.update()
-    def mousePressEvent(self, e):
-        if e.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
+    def enterEvent(self, e):
+        self._hover = True
+        self.update()
+
+    def leaveEvent(self, e):
+        self._hover = False
+        self.update()
 
     def paintEvent(self, event):
         p = QPainter(self)
@@ -117,8 +117,13 @@ class MainWindow(QMainWindow):
         name = LAUNCHER_NAME
         self.setWindowTitle(name)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setMinimumSize(WINDOW_WIDTH, WINDOW_HEIGHT)
         self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
         self.setStyleSheet(DARK_GLASS_QSS)
+        self.setMouseTracking(True)
+        self._is_maximized = False
+        self._normal_geo = None
+        QApplication.instance().installEventFilter(self)
         self._center()
         self._build_ui(name)
         self._config_updated_signal.connect(self._apply_config_update)
@@ -151,6 +156,7 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self, name: str):
         central = QWidget()
+        central.setMouseTracking(True)
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
         root.setContentsMargins(0, 0, 0, 0)
@@ -414,15 +420,20 @@ class MainWindow(QMainWindow):
         self._min_btn = WinControlBtn("─", QColor(139, 148, 158), QColor(48, 54, 61))
         self._min_btn.clicked.connect(self.showMinimized)
 
+        self._max_btn = WinControlBtn("▢", QColor(139, 148, 158), QColor(48, 54, 61))
+        self._max_btn.clicked.connect(self._toggle_maximize)
+
         self._close_btn = WinControlBtn("✕", QColor(248, 81, 73), QColor(218, 54, 51))
         self._close_btn.clicked.connect(self.close)
 
         top_layout.addWidget(self._min_btn)
+        top_layout.addWidget(self._max_btn)
         top_layout.addWidget(self._close_btn)
 
         # Drag через топ-бар
         top_bar.mousePressEvent = self._tb_press
         top_bar.mouseMoveEvent = self._tb_move
+        top_bar.mouseDoubleClickEvent = self._tb_double_click
         top_bar.mouseReleaseEvent = lambda e: setattr(self, "_drag_pos", None)
         self._drag_pos = None
 
@@ -539,14 +550,113 @@ class MainWindow(QMainWindow):
         self._sidebar.select_all()
         QTimer.singleShot(0, lambda: self._content.show_all_modes(modes))
 
-    # Window controls
+    # Window controls & Frameless resize
+
+    _RESIZE_MARGIN = 8
+
+    def _is_window_maximized(self) -> bool:
+        return getattr(self, "_is_maximized", False) or self.isMaximized()
+
+    def _get_resize_edges_from_global(self, global_pt) -> Qt.Edge | None:
+        """Определяет границы окна по глобальным экранным координатам."""
+        if self._is_window_maximized():
+            return None
+        rect = self.frameGeometry()
+        gx, gy = global_pt.x(), global_pt.y()
+        rx, ry, rw, rh = rect.x(), rect.y(), rect.width(), rect.height()
+        if not (rx <= gx <= rx + rw and ry <= gy <= ry + rh):
+            return None
+        m = self._RESIZE_MARGIN
+        x = gx - rx
+        y = gy - ry
+        edges = 0
+        if x <= m:
+            edges |= Qt.Edge.LeftEdge.value
+        elif x >= rw - m:
+            edges |= Qt.Edge.RightEdge.value
+        if y <= m:
+            edges |= Qt.Edge.TopEdge.value
+        elif y >= rh - m:
+            edges |= Qt.Edge.BottomEdge.value
+        return Qt.Edge(edges) if edges else None
+
+    def _update_cursor_for_edges(self, edges: Qt.Edge | None):
+        if edges is None:
+            self.unsetCursor()
+            return
+        val = edges.value
+        l = Qt.Edge.LeftEdge.value
+        r = Qt.Edge.RightEdge.value
+        t = Qt.Edge.TopEdge.value
+        b = Qt.Edge.BottomEdge.value
+        if (val == (l | t)) or (val == (r | b)):
+            self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+        elif (val == (r | t)) or (val == (l | b)):
+            self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+        elif val & (l | r):
+            self.setCursor(Qt.CursorShape.SizeHorCursor)
+        elif val & (t | b):
+            self.setCursor(Qt.CursorShape.SizeVerCursor)
+        else:
+            self.unsetCursor()
+
+    def eventFilter(self, obj, event):
+        from PyQt6.QtCore import QEvent
+        etype = event.type()
+        if etype == QEvent.Type.MouseMove:
+            if not self._is_window_maximized():
+                gp = event.globalPosition().toPoint()
+                edges = self._get_resize_edges_from_global(gp)
+                self._update_cursor_for_edges(edges)
+        elif etype == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+            if not self._is_window_maximized():
+                gp = event.globalPosition().toPoint()
+                edges = self._get_resize_edges_from_global(gp)
+                if edges is not None:
+                    wh = self.windowHandle()
+                    if wh is not None:
+                        wh.startSystemResize(edges)
+                        return True
+        return super().eventFilter(obj, event)
+
+    def _toggle_maximize(self):
+        if self._is_maximized:
+            # Восстанавливаем сохраненную геометрию
+            self._is_maximized = False
+            if self.isMaximized():
+                self.showNormal()
+            if getattr(self, "_normal_geo", None):
+                self.setGeometry(self._normal_geo)
+            else:
+                self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
+                self._center()
+        else:
+            # Разворачиваем на всю доступную область экрана (с учетом панели задач Windows)
+            self._normal_geo = self.geometry()
+            self._is_maximized = True
+            screen = QApplication.screenAt(self.geometry().center()) or QApplication.primaryScreen()
+            if screen:
+                self.setGeometry(screen.availableGeometry())
+            else:
+                self.showMaximized()
+        self._update_max_button_state()
+
+    def _update_max_button_state(self):
+        if hasattr(self, "_max_btn"):
+            self._max_btn._text = "❐" if self._is_maximized else "▢"
+            self._max_btn.update()
+
+    def _tb_double_click(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._toggle_maximize()
 
     def _tb_press(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            if not self._is_maximized:
+                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
 
     def _tb_move(self, event):
-        if self._drag_pos and event.buttons() == Qt.MouseButton.LeftButton:
+        if not self._is_maximized and self._drag_pos and event.buttons() == Qt.MouseButton.LeftButton:
             self.move(event.globalPosition().toPoint() - self._drag_pos)
 
     # Tab switching
@@ -653,7 +763,9 @@ class MainWindow(QMainWindow):
 
     def changeEvent(self, event):
         from PyQt6.QtCore import QEvent
-        if event.type() == QEvent.Type.ActivationChange:
+        if event.type() == QEvent.Type.WindowStateChange:
+            self._update_max_button_state()
+        elif event.type() == QEvent.Type.ActivationChange:
             if self.isActiveWindow():
                 self._content.refresh_playtime()
                 self._content.resume_video()
@@ -1121,10 +1233,14 @@ class MainWindow(QMainWindow):
             self._running_mode_id = ""
             self._running_proc = None
             self._game_running_signal.emit(False, _closed_id)
+            import stats_client
+            stats_client.stop_mode_session()
         mode_id = self._running_mode_id or None
         # _set_online пошлёт пульс на сервер и обновит метку ("Играет"/"В сети")
         import threading
+        import stats_client
         threading.Thread(target=self._set_online, args=(True, mode_id), daemon=True).start()
+        threading.Thread(target=stats_client.send_stats_ping, args=(mode_id,), daemon=True).start()
 
     def _set_online(self, is_online: bool = True, mode_id: str | None = None):
         """Обновляет mode_id на сервере. Онлайн-статус управляется SSE-соединением."""
@@ -1431,6 +1547,8 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        if hasattr(self, "_sidebar"):
+            self._sidebar.update_width(self.width())
         for layer in (self._bg_a, self._bg_b):
             layer.setGeometry(0, 0, self.width(), self.height())
             layer.lower()

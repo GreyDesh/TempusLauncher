@@ -430,6 +430,12 @@ class Sidebar(QWidget):
         self._all_btn: AllModesBtn | None = None
         self._build_ui(modes)
 
+    def update_width(self, window_width: int):
+        """Динамически масштабирует сайдбар пропорционально ширине окна (18%, min 230, max 380)."""
+        target_w = max(SIDEBAR_WIDTH, min(380, round(window_width * 0.1797)))
+        if self.width() != target_w:
+            self.setFixedWidth(target_w)
+
     def _build_ui(self, modes: list):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 12, 0, 0)
