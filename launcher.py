@@ -218,6 +218,25 @@ def launch_mode(mode: dict, username: str) -> subprocess.Popen:
     s = raw_uuid.replace("-", "")
     player_uuid  = f"{s[:8]}-{s[8:12]}-{s[12:16]}-{s[16:20]}-{s[20:]}" if len(s) == 32 else raw_uuid
     mc_token     = settings.get("token") or "0"
+    extra_jvm_args: list[str] = []
+    # Добавляем Java Agent для отслеживания статуса сервера, если агент существует
+    try:
+        import local_api
+        agent_port = local_api.get_port() or local_api.start()
+        from config import BASE_DIR
+        agent_jar = BASE_DIR / "assets" / "tempus-agent.jar"
+        if not agent_jar.exists():
+            # Dev-режим: проверяем в корне проекта / java_agent
+            dev_jar = Path(__file__).parent.parent / "java_agent" / "tempus-agent.jar"
+            if dev_jar.exists():
+                agent_jar = dev_jar
+
+        if agent_jar.exists() and agent_port:
+            extra_jvm_args.append(f"-javaagent:{agent_jar.resolve()}={agent_port}")
+            log.info("[launcher] injected javaagent: %s port=%d", agent_jar, agent_port)
+    except Exception as e:
+        log.warning("[launcher] failed to inject javaagent: %s", e)
+
     options: mll.types.MinecraftOptions = {
         "username": username,
         "uuid":     player_uuid,
@@ -233,7 +252,7 @@ def launch_mode(mode: dict, username: str) -> subprocess.Popen:
             "-XX:G1HeapRegionSize=32m",
             "-Dfml.ignoreInvalidMinecraftCertificates=true",
             "-Dfml.ignorePatchDiscrepancies=true",
-        ] + list(mode.get("modpack", {}).get("jvm_args", [])),
+        ] + list(mode.get("modpack", {}).get("jvm_args", [])) + extra_jvm_args,
         "executablePath": java,
         "gameDirectory": str(mode_dir),
         "launcherName": "TempusLauncher",

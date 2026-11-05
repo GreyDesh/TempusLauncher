@@ -100,6 +100,8 @@ class MainWindow(QMainWindow):
     _news_reload_signal = pyqtSignal()     # SSE 'news_updated' -> перезагрузить ленту
     _feed_reload_signal = pyqtSignal()     # SSE 'feed_updated' -> перезагрузить посты-скриншоты
     _friends_update_signal = pyqtSignal()  # SSE 'friends_updated' -> маршалинг в UI-поток
+    _agent_connect_signal = pyqtSignal(str, int)  # (host, port)
+    _agent_disconnect_signal = pyqtSignal()
 
     def __init__(self, config: dict, news: list, username: str):
         super().__init__()
@@ -108,6 +110,7 @@ class MainWindow(QMainWindow):
         self._username = username
         self._chat_unread: dict = {}
         self._current_mode: dict | None = None
+        self._current_server_ip: str | None = None  # host:port активного подключения к серверу MC
         self._modes_map = {m["id"]: m.get("name", m["id"]) for m in config.get("modes", []) if "id" in m}
 
         from config import LAUNCHER_NAME
@@ -125,6 +128,9 @@ class MainWindow(QMainWindow):
         self._chat_unread_signal.connect(self._apply_chat_unread)
         self._toast_signal.connect(self._show_toast)
         self._sse_connected_signal.connect(self._on_sse_connected)
+        self._agent_connect_signal.connect(self._on_agent_connect)
+        self._agent_disconnect_signal.connect(self._on_agent_disconnect)
+        self._init_local_api()
         self._start_watcher()
         QTimer.singleShot(1500, self.refresh_chat_unread)   # непрочитанное на старте
         QTimer.singleShot(2500, self._preload_chats)        # прогрев кэша переписок
@@ -765,6 +771,7 @@ class MainWindow(QMainWindow):
                 self._game_running_signal.emit(False, mode.get("id", ""))
                 QTimer.singleShot(0, _poll_timer.stop)
                 threading.Thread(target=_notify_online, args=(False,), daemon=True).start()
+                self._agent_disconnect_signal.emit()
                 return
             _window_found[0] = True
             self._running_mode_id = mode.get("id", "")
@@ -779,6 +786,7 @@ class MainWindow(QMainWindow):
             self._game_running_signal.emit(False, mode.get("id", ""))
             QTimer.singleShot(0, _poll_timer.stop)
             threading.Thread(target=_notify_online, args=(False,), daemon=True).start()
+            self._agent_disconnect_signal.emit()
             # Сообщаем серверу что игра закончилась — он считает время сам
             pt.stop_session()
 
@@ -976,7 +984,83 @@ class MainWindow(QMainWindow):
         self._log_dialog.show_error("Произошла ошибка. Отправьте этот лог администрации.")
         self._log_dialog.show()
 
-    # ── Local API (мод ↔ лаунчер) ────────────────────────────────────────────
+    # ── Local API (агент / мод ↔ лаунчер) ────────────────────────────────────
+
+    def _init_local_api(self):
+        try:
+            import local_api
+            local_api.register_handler("CONNECT", self._handle_agent_connect_event)
+            local_api.register_handler("DISCONNECT", self._handle_agent_disconnect_event)
+            # Старый формат эвентов от модов (если используется)
+            local_api.register_handler("server_join", self._handle_agent_connect_event)
+            local_api.register_handler("server_leave", self._handle_agent_disconnect_event)
+            local_api.start()
+        except Exception as e:
+            import logging
+            logging.getLogger("main").warning("[local_api] init failed: %s", e)
+
+    def _handle_agent_connect_event(self, data: dict):
+        host = data.get("host") or data.get("server_ip") or ""
+        port = int(data.get("port") or 25565)
+        if host:
+            self._agent_connect_signal.emit(host, port)
+
+    def _handle_agent_disconnect_event(self, data: dict = None):
+        self._agent_disconnect_signal.emit()
+
+    def _on_agent_connect(self, host: str, port: int):
+        import logging
+        log = logging.getLogger("main")
+        server_ip = f"{host}:{port}" if port and port != 25565 else host
+        self._current_server_ip = server_ip
+        log.info("[agent] Player connected to server: %s (mode=%s)", server_ip, self._running_mode_id)
+        # Отправляем сервер_ip в фоне
+        import threading
+        threading.Thread(target=self._send_server_ip_to_backend, args=(server_ip,), daemon=True).start()
+
+    def _on_agent_disconnect(self):
+        import logging
+        log = logging.getLogger("main")
+        if self._current_server_ip is not None:
+            log.info("[agent] Player disconnected from server (was %s)", self._current_server_ip)
+            self._current_server_ip = None
+            import threading
+            threading.Thread(target=self._clear_server_ip_on_backend, daemon=True).start()
+
+    def _send_server_ip_to_backend(self, server_ip: str):
+        import requests as _req, auth_client, config as _cfg, logging
+        log = logging.getLogger("main")
+        try:
+            headers = auth_client.session_headers()
+            if not headers:
+                return
+            settings = auth_client._load_settings()
+            uuid = settings.get("uuid", "")
+            if not uuid:
+                return
+            body = {
+                "uuid": uuid,
+                "server_ip": server_ip,
+                "mode_id": self._running_mode_id or None,
+            }
+            r = _req.post(f"{_cfg.SERVER_URL}/api/player/server",
+                          json=body, headers=headers, timeout=5, verify=_cfg.SSL_VERIFY)
+            log.debug("[backend] player/server POST: %s status=%d", server_ip, r.status_code)
+        except Exception as e:
+            log.debug("[backend] failed to send player/server: %s", e)
+
+    def _clear_server_ip_on_backend(self):
+        import requests as _req, auth_client, config as _cfg, logging
+        log = logging.getLogger("main")
+        try:
+            headers = auth_client.session_headers()
+            if not headers:
+                return
+            r = _req.delete(f"{_cfg.SERVER_URL}/api/player/server",
+                            headers=headers, timeout=5, verify=_cfg.SSL_VERIFY)
+            log.debug("[backend] player/server DELETE status=%d", r.status_code)
+        except Exception as e:
+            log.debug("[backend] failed to delete player/server: %s", e)
 
     # ── JSON hot-reload ───────────────────────────────────────────────────────
 
@@ -1350,5 +1434,10 @@ class MainWindow(QMainWindow):
             event.ignore()
             self.hide()
         else:
+            try:
+                import local_api
+                local_api.stop()
+            except Exception:
+                pass
             self._watcher.stop()
             super().closeEvent(event)
