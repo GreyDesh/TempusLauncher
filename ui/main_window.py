@@ -1454,31 +1454,38 @@ class MainWindow(QMainWindow):
         self._check_app_update()
 
     def _check_app_update(self):
-        # Сверяет версию с GitHub Releases (там лежит app.zip). Fallback — manifest.json на сервере.
+        # Сверяет версию строго с GitHub Releases (где публикуются релизы app.zip).
         try:
             import sys, json, requests
             from pathlib import Path
-            from config import SERVER_URL, SSL_VERIFY
             if not hasattr(self, "_update_shown_ver"):
                 self._update_shown_ver = ""
             state_f = Path(sys.executable).parent / "state.json"
             if not state_f.exists():
                 return
             running = json.loads(state_f.read_text(encoding="utf-8")).get("app_ver", "")
-            latest = ""
+            if not running:
+                return
             try:
                 gh = requests.get(
                     "https://api.github.com/repos/GreyDesh/TempusLauncher/releases/latest",
+                    headers={"User-Agent": "TempusLauncher"},
                     timeout=6,
                 ).json()
                 latest = (gh.get("tag_name") or "").lstrip("v")
             except Exception:
-                pass
-            if not latest:
-                latest = (requests.get(f"{SERVER_URL}/api/launcher/manifest",
-                                       timeout=6, verify=SSL_VERIFY)
-                          .json().get("app") or {}).get("version", "")
-            if running and latest and latest != running and latest != self._update_shown_ver:
+                return
+
+            def _parse_ver(v: str):
+                try:
+                    return tuple(int(x) for x in v.split("."))
+                except Exception:
+                    return ()
+
+            # Показываем баннер только если на GitHub версия СТРОГО новее текущей
+            latest_parsed = _parse_ver(latest)
+            running_parsed = _parse_ver(running)
+            if latest_parsed and running_parsed and latest_parsed > running_parsed and latest != self._update_shown_ver:
                 self._update_shown_ver = latest
                 self._sidebar.show_update_banner(latest)
         except Exception:
