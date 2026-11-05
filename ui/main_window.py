@@ -763,7 +763,12 @@ class MainWindow(QMainWindow):
             self._set_online(is_online=True, mode_id=mode_id) if is_online else self._set_online(True, None)
 
         def _watch_game():
-            time.sleep(10)
+            # Ожидаем появления окна / выхода процесса (до 10 секунд с проверкой каждые 0.5с)
+            for _ in range(20):
+                time.sleep(0.5)
+                if proc.poll() is not None:
+                    break
+
             if proc.poll() is not None:
                 # Игра не поднялась (краш/мгновенное закрытие) — возвращаем статус и уведомляем сервер
                 self._running_mode_id = ""
@@ -772,6 +777,12 @@ class MainWindow(QMainWindow):
                 QTimer.singleShot(0, _poll_timer.stop)
                 threading.Thread(target=_notify_online, args=(False,), daemon=True).start()
                 self._agent_disconnect_signal.emit()
+                import logging
+                logging.getLogger("main").warning(
+                    "[watch_game] Process exited early with code %s. Log lines: %s",
+                    proc.poll(),
+                    "\n".join(_log_lines[-20:])
+                )
                 return
             _window_found[0] = True
             self._running_mode_id = mode.get("id", "")
